@@ -33,8 +33,8 @@ using namespace std;
 using namespace Eigen;
 
 // VertexBufferObject wrapper
-vector<VertexBufferObject> EBOS;
-vector<VertexBufferObject> VBOS;
+vector<unsigned int> EBOS;
+vector<unsigned int> VBOS;
 vector<VertexArrayObject> VAOS;
 // unsigned int indices[];
 
@@ -158,6 +158,95 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   return matrices;
 
 }
+void initializeMVP(GLFWwindow* window)
+{
+  // Get the size of the window
+  int width, height;
+  glfwGetWindowSize(window, &width, &height);
+  float aspect = width/height;
+
+  //------------------------------------------
+  // PROJECTION MATRIX
+  //------------------------------------------
+  t = tan(theta/2) * abs(n);
+  b = -t;
+
+  r = aspect * t;
+  l = -r;
+
+  // Apply projection matrix to corner points
+  orthographic <<
+  2/(r - l), 0., 0., -((r+l)/(r-l)),
+  0., 2/(t - b), 0., -((t+b)/(t-b)),
+  0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
+  0., 0., 0.,   1.;
+
+  // perspective maps a frustrum to a unit cube
+  // take  vertex from each end of the frustrum and map them to the unit cube
+  perspective <<
+  2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
+  0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
+  0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
+  0., 0., -1., 0;
+
+  if(ortho){
+    projection = orthographic;
+  }else{
+    projection = perspective;
+  }
+
+  //------------------------------------------
+  // VIEW/CAMERA MATRIX
+  //------------------------------------------
+  Vector3f e(0.0, 0.0, 2.0); //camera position/ eye position
+  Vector3f g(0.0, 0.0, 0.0); //target point, where we want to look
+  Vector3f t(0.0, 0.5, 0.0); //up vector
+
+  Vector3f w = (e- g).normalized();
+  Vector3f u = (t.cross(w).normalized());
+  Vector3f v = w.cross(u);
+
+  // cout << "W:" << w << endl;
+  // cout << "U:" << u << endl;
+  // cout << "V:" << v << endl;
+
+  Matrix4f look;
+  look <<
+  u[0], u[1], u[2], 0.,
+  v[0], v[1], v[2], 0.,
+  w[0], w[1], w[2], 0.,
+  0.,   0.,    0.,  0.5;
+
+  Matrix4f at;
+  at <<
+  0.5, 0.0, 0.0, -e[0],
+  0.0, 0.5, 0.0, -e[1],
+  0.0, 0.0, 0.5, -e[2],
+  0.0, 0.0, 0.0, 0.5;
+  view = look * at;
+
+  //------------------------------------------
+  // MODEL MATRIX
+  //------------------------------------------
+  // float degree = (PI/180) * -60;
+  // model <<
+  // cos(degree),  0., sin(degree), 0,
+  // 0.,           1.,           0, 0,
+  // -sin(degree), 0, cos(degree), 0,
+  // 0,          0,              0, 1;
+
+  model <<
+  1., 0., 0., 0.,
+  0., 1., 0., 0.,
+  0., 0., 1., 0.,
+  0., 0., 0., 1.;
+
+  //------------------------------------------
+  // MVP MATRIX
+  //------------------------------------------
+  MVP = projection * view * model;
+
+}
 void addUnitCube()
 {
   float vertices[] = {
@@ -227,6 +316,8 @@ void addUnitCube()
   numObjects++;
 
   VAOS.push_back(VAO);
+  EBOS.push_back(EBO);
+  VBOS.push_back(VBO);
 
 }
 void addBunny()
@@ -457,103 +548,8 @@ int main(void)
     printf("Supported OpenGL is %s\n", (const char*)glGetString(GL_VERSION));
     printf("Supported GLSL is %s\n", (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-    // Initialize the VAO
-    // A Vertex Array Object (or VAO) is an object that describes how the vertex
-    // attributes are stored in a Vertex Buffer Object (or VBO). This means that
-    // the VAO is not the actual object storing the vertex data,
-    // but the descriptor of the vertex data.
-
-    // Get the size of the window
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    float aspect = width/height;
-
-    //------------------------------------------
-    // PROJECTION MATRIX
-    //------------------------------------------
-    t = tan(theta/2) * abs(n);
-    b = -t;
-
-    r = aspect * t;
-    l = -r;
-
-    // Apply projection matrix to corner points
-    orthographic <<
-    2/(r - l), 0., 0., -((r+l)/(r-l)),
-    0., 2/(t - b), 0., -((t+b)/(t-b)),
-    0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
-    0., 0., 0.,   1.;
-
-    // perspective maps a frustrum to a unit cube
-    // take  vertex from each end of the frustrum and map them to the unit cube
-    perspective <<
-    2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
-    0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
-    0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
-    0., 0., -1., 0;
-
-    if(ortho){
-      projection = orthographic;
-    }else{
-      projection = perspective;
-    }
-
-    //------------------------------------------
-    // VIEW/CAMERA MATRIX
-    //------------------------------------------
-    Vector3f e(0.0, 0.0, 2.0); //camera position/ eye position
-    Vector3f g(0.0, 0.0, 0.0); //target point, where we want to look
-    Vector3f t(0.0, 0.5, 0.0); //up vector
-
-    Vector3f w = (e- g).normalized();
-    Vector3f u = (t.cross(w).normalized());
-    Vector3f v = w.cross(u);
-
-    // cout << "W:" << w << endl;
-    // cout << "U:" << u << endl;
-    // cout << "V:" << v << endl;
-
-    Matrix4f look;
-    look <<
-    u[0], u[1], u[2], 0.,
-    v[0], v[1], v[2], 0.,
-    w[0], w[1], w[2], 0.,
-    0.,   0.,    0.,  0.5;
-
-    Matrix4f at;
-    at <<
-    0.5, 0.0, 0.0, -e[0],
-    0.0, 0.5, 0.0, -e[1],
-    0.0, 0.0, 0.5, -e[2],
-    0.0, 0.0, 0.0, 0.5;
-    view = look * at;
-
-    //------------------------------------------
-    // MODEL MATRIX
-    //------------------------------------------
-    float degree = (PI/180) * -60;
-    model <<
-    cos(degree),  0., sin(degree), 0,
-    0.,           1.,           0, 0,
-    -sin(degree), 0, cos(degree), 0,
-    0,          0,              0, 1;
-
-    // model <<
-    // 1., 0., 0., 0.,
-    // 0., 1., 0., 0.,
-    // 0., 0., 1., 0.,
-    // 0., 0., 0., 1.;
-
-    //------------------------------------------
-    // MVP MATRIX
-    //------------------------------------------
-    MVP = projection * view * model;
-
-    //------------------------------------------
-    // COLOR MATRIX
-    //------------------------------------------
-    // VBO_C.init();
-    // colorCube();
+    // Initialize the MVP uniform
+    initializeMVP(window);
 
     //------------------------------------------
     // OFF DATA
@@ -630,10 +626,8 @@ int main(void)
           // Set MVP matrix uniform
           glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
           // Draw triangles
-          if(numObjects > 0){
-            glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-          }
+          glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
+          glBindVertexArray(0);
       }
       // Swap front and back buffers
       glfwSwapBuffers(window);
@@ -642,17 +636,16 @@ int main(void)
       glfwPollEvents();
 
     }
-
     // Deallocate opengl memory
     program.free();
-    // glDeleteBuffers(1, &VBO);
-    // glDeleteBuffers(1, &EBO);
-    // VAO_1.free();
-    // for(int i = 0; i < VAOS.size(); i++){
-    //   VertexArrayObject VAO = VAOS[i];
-    //   VAO.free();
-    // }
-    // VBO.free();
+    for(int i = 0; i < VAOS.size(); i++){
+      VertexArrayObject VAO = VAOS[i];
+      unsigned int EBO = EBOS[i];
+      unsigned int  VBO = VBOS[i];
+      glDeleteBuffers(1, &VBO);
+      glDeleteBuffers(1, &EBO);
+      VAO.free();
+    }
 
     // Deallocate glfw internals
     glfwTerminate();
