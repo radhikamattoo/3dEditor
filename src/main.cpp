@@ -638,7 +638,7 @@ int main(void)
     //------------------------------------------
     // MODEL MATRIX
     //------------------------------------------
-    float degree = (PI/180) * -45;
+    float degree = (PI/180) * -60;
     model <<
     cos(degree),  0., sin(degree), 0,
     0.,           1.,           0, 0,
@@ -719,7 +719,7 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
