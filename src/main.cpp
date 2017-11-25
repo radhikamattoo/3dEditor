@@ -33,10 +33,8 @@ using namespace std;
 using namespace Eigen;
 
 // VertexBufferObject wrapper
-VertexArrayObject VAO;
-// VertexBufferObject VBO;
-VertexBufferObject EBO;
-VertexBufferObject VBO_C;
+vector<VertexBufferObject> EBOS;
+vector<VertexBufferObject> VBOS;
 vector<VertexArrayObject> VAOS;
 // unsigned int indices[];
 
@@ -44,7 +42,7 @@ vector<VertexArrayObject> VAOS;
 bool ortho = false;
 
 // Number of meshes existing in the scene
-int numObjects = 1;
+int numObjects = 0;
 
 // Keeping track of mouse position
 double currentX, currentY, previousX, previousY;
@@ -52,7 +50,6 @@ double currentX, currentY, previousX, previousY;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
-Eigen::MatrixXf meshes(3, 8); // dynamically resized per object - HARD ...
 Eigen::MatrixXf colors(3, 8); // dynamically resized per object
 Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
@@ -163,77 +160,73 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 }
 void addUnitCube()
 {
-  // TODO: USE VBO INDEX TO PREVENT REPEAT VERTICES
-  // meshes <<
-  // -0.5f,-0.5f,-0.5f,
-	// -0.5f,-0.5f, 0.5f,
-	// -0.5f, 0.5f, 0.5f,
-	//  0.5f, 0.5f,-0.5f,
-	// -0.5f,-0.5f,-0.5f,
-	// -0.5f, 0.5f,-0.5f,
-	//  0.5f,-0.5f, 0.5f,
-	// -0.5f,-0.5f,-0.5f,
-	//  0.5f,-0.5f,-0.5f,
-	//  0.5f, 0.5f,-0.5f,
-	//  0.5f,-0.5f,-0.5f,
-	// -0.5f,-0.5f,-0.5f,
-	// -0.5f,-0.5f,-0.5f,
-	// -0.5f, 0.5f, 0.5f,
-	// -0.5f, 0.5f,-0.5f,
-	//  0.5f,-0.5f, 0.5f,
-	// -0.5f,-0.5f, 0.5f,
-	// -0.5f,-0.5f,-0.5f,
-	// -0.5f, 0.5f, 0.5f,
-	// -0.5f,-0.5f, 0.5f,
-	//  0.5f,-0.5f, 0.5f,
-	//  0.5f, 0.5f, 0.5f,
-	//  0.5f,-0.5f,-0.5f,
-	//  0.5f, 0.5f,-0.5f,
-	//  0.5f,-0.5f,-0.5f,
-	//  0.5f, 0.5f, 0.5f,
-	//  0.5f,-0.5f, 0.5f,
-	//  0.5f, 0.5f, 0.5f,
-	//  0.5f, 0.5f,-0.5f,
-	// -0.5f, 0.5f,-0.5f,
-	//  0.5f, 0.5f, 0.5f,
-	// -0.5f, 0.5f,-0.5f,
-	// -0.5f, 0.5f, 0.5f,
-	//  0.5f, 0.5f, 0.5f,
-	// -0.5f, 0.5f, 0.5f,
-	//  0.5f,-0.5f, 0.5f;
+  float vertices[] = {
     // front
-  // -0.5, -0.5,  0.5,
-  //  0.5, -0.5,  0.5,
-  //  0.5,  0.5,  0.5,
-  // -0.5,  0.5,  0.5,
-  // // back
-  // -0.5, -0.5, -0.5,
-  //  0.5, -0.5, -0.5,
-  //  0.5,  0.5, -0.5,
-  // -0.5,  0.5, -0.5;
-  // indices = {
-  //   // front
-  //   0, 1, 2,
-  //   2, 3, 0,
-  //   // top
-  //   1, 5, 6,
-  //   6, 2, 1,
-  //   // back
-  //   7, 6, 5,
-  //   5, 4, 7,
-  //   // bottom
-  //   4, 0, 3,
-  //   3, 7, 4,
-  //   // left
-  //   4, 5, 1,
-  //   1, 0, 4,
-  //   // right
-  //   3, 2, 6,
-  //   6, 7, 3,
-  //   };
-   // meshes /= 70;
-  // VBO.update(meshes);
+    -0.5, -0.5,  0.5,
+     0.5, -0.5,  0.5,
+     0.5,  0.5,  0.5,
+    -0.5,  0.5,  0.5,
+    // back
+    -0.5, -0.5, -0.5,
+     0.5, -0.5, -0.5,
+     0.5,  0.5, -0.5,
+    -0.5,  0.5, -0.5,
+  };
+  if(ortho){
+    for(int i = 0; i < sizeof(vertices)/sizeof(vertices[0]); i++){
+      vertices[i] = vertices[i]/70;
+    }
+  }
+  unsigned int indices[] = {  // note that we start from 0!
+      // front
+      0, 1, 2,
+      2, 3, 0,
+      // top
+      1, 5, 6,
+      6, 2, 1,
+      // back
+      7, 6, 5,
+      5, 4, 7,
+      // bottom
+      4, 0, 3,
+      3, 7, 4,
+      // left
+      4, 5, 1,
+      1, 0, 4,
+      // right
+      3, 2, 6,
+      6, 7, 3,
+  };
+  VertexArrayObject VAO;
+  VAO.init();
 
+
+  // Initialize the VBO with the vertices data
+  // A VBO is a data container that lives in the GPU memory
+  unsigned int EBO;
+  glGenBuffers(1, &EBO);
+
+  unsigned int VBO;
+  glGenBuffers(1, &VBO);
+  VAO.bind();
+
+  // 2. copy our vertices array in a vertex buffer for OpenGL to use
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  // 3. copy our index array in a element buffer for OpenGL to use
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+  // 4. then set the vertex attributes pointers
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(0);
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
+
+  glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs), remember: do NOT unbind the EBO, keep it bound to this VAO
+
+  numObjects++;
+
+  VAOS.push_back(VAO);
 
 }
 void addBunny()
@@ -469,106 +462,6 @@ int main(void)
     // attributes are stored in a Vertex Buffer Object (or VBO). This means that
     // the VAO is not the actual object storing the vertex data,
     // but the descriptor of the vertex data.
-    float vertices[] = {
-      // front
-      -0.5, -0.5,  0.5,
-       0.5, -0.5,  0.5,
-       0.5,  0.5,  0.5,
-      -0.5,  0.5,  0.5,
-      // back
-      -0.5, -0.5, -0.5,
-       0.5, -0.5, -0.5,
-       0.5,  0.5, -0.5,
-      -0.5,  0.5, -0.5,
-    };
-    unsigned int indices[] = {  // note that we start from 0!
-        // front
-        0, 1, 2,
-        2, 3, 0,
-        // top
-        1, 5, 6,
-        6, 2, 1,
-        // back
-        7, 6, 5,
-        5, 4, 7,
-        // bottom
-        4, 0, 3,
-        3, 7, 4,
-        // left
-        4, 5, 1,
-        1, 0, 4,
-        // right
-        3, 2, 6,
-        6, 7, 3,
-    };
-    VAO.init();
-
-
-    // Initialize the VBO with the vertices data
-    // A VBO is a data container that lives in the GPU memory
-    // addUnitCube();
-    // VBO.init();
-    // EBO.init();
-    unsigned int EBO;
-    glGenBuffers(1, &EBO);
-
-    unsigned int VBO;
-    glGenBuffers(1, &VBO);
-    VAO.bind();
-
-    // meshes <<
-    // -0.0f,-0.0f,-0.0f,
-  	// -0.0f,-0.0f, 0.0f,
-  	// -0.0f, 0.0f, 0.0f,
-  	//  0.0f, 0.0f,-0.0f,
-  	// -0.0f,-0.0f,-0.0f,
-  	// -0.0f, 0.0f,-0.0f,
-  	//  0.0f,-0.0f, 0.0f,
-  	// -0.0f,-0.0f,-0.0f,
-  	//  0.0f,-0.0f,-0.0f,
-  	//  0.0f, 0.0f,-0.0f,
-  	//  0.0f,-0.0f,-0.0f,
-  	// -0.0f,-0.0f,-0.0f,
-  	// -0.0f,-0.0f,-0.0f,
-  	// -0.0f, 0.0f, 0.0f,
-  	// -0.0f, 0.0f,-0.0f,
-  	//  0.0f,-0.0f, 0.0f,
-  	// -0.0f,-0.0f, 0.0f,
-  	// -0.0f,-0.0f,-0.0f,
-  	// -0.0f, 0.0f, 0.0f,
-  	// -0.0f,-0.0f, 0.0f,
-  	//  0.0f,-0.0f, 0.0f,
-  	//  0.0f, 0.0f, 0.0f,
-  	//  0.0f,-0.0f,-0.0f,
-  	//  0.0f, 0.0f,-0.0f,
-  	//  0.0f,-0.0f,-0.0f,
-  	//  0.0f, 0.0f, 0.0f,
-  	//  0.0f,-0.0f, 0.0f,
-  	//  0.0f, 0.0f, 0.0f,
-  	//  0.0f, 0.0f,-0.0f,
-  	// -0.0f, 0.0f,-0.0f,
-  	//  0.0f, 0.0f, 0.0f,
-  	// -0.0f, 0.0f,-0.0f,
-  	// -0.0f, 0.0f, 0.0f,
-  	//  0.0f, 0.0f, 0.0f,
-  	// -0.0f, 0.0f, 0.0f,
-  	//  0.0f,-0.0f, 0.0f;
-    // VBO.update(meshes);
-    // glBindVertexArray(VAO);
-    // 2. copy our vertices array in a vertex buffer for OpenGL to use
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    // 3. copy our index array in a element buffer for OpenGL to use
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    // 4. then set the vertex attributes pointers
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
-
-    glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs), remember: do NOT unbind the EBO, keep it bound to this VAO
-
 
     // Get the size of the window
     int width, height;
@@ -719,42 +612,34 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
-      // for(int i = 0; i < VAOS.size(); i++){
-          // VertexArrayObject VAO = VAOS[i];
-          // Bind your VAO (not necessary if you have only one)
+      // Bind your program
+      program.bind();
+      // Clear the framebuffer
+      glEnable(GL_DEPTH_TEST);
+      glDepthFunc(GL_LESS);
+      glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+      glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+
+      for(int i = 0; i < VAOS.size(); i++){
+          VertexArrayObject VAO = VAOS[i];
           VAO.bind();
-          // Bind your program
-          program.bind();
-
-          // Clear the framebuffer
-          glEnable(GL_DEPTH_TEST);
-          glDepthFunc(GL_LESS);
-          glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-          glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
           // Set MVP matrix uniform
           glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
-
-          // // Draw triangles
+          // Draw triangles
           if(numObjects > 0){
-            // glDrawArrays(GL_TRIANGLES, 0, numObjects * 36);
-            // glBindVertexArray(VAO);
-            // VAO.bind();
             glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
             glBindVertexArray(0);
-
           }
+      }
+      // Swap front and back buffers
+      glfwSwapBuffers(window);
 
-          // Swap front and back buffers
-          glfwSwapBuffers(window);
-
-          // Poll for and process events
-          glfwPollEvents();
-      // }
+      // Poll for and process events
+      glfwPollEvents();
 
     }
 
