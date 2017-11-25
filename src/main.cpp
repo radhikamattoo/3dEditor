@@ -33,16 +33,18 @@ using namespace std;
 using namespace Eigen;
 
 // VertexBufferObject wrapper
-VertexBufferObject VBO;
-VertexBufferObject VBO_I;
+VertexArrayObject VAO;
+// VertexBufferObject VBO;
+VertexBufferObject EBO;
 VertexBufferObject VBO_C;
 vector<VertexArrayObject> VAOS;
+// unsigned int indices[];
 
 // Orthographic or perspective projection?
 bool ortho = false;
 
 // Number of meshes existing in the scene
-int numObjects = 0;
+int numObjects = 1;
 
 // Keeping track of mouse position
 double currentX, currentY, previousX, previousY;
@@ -50,8 +52,8 @@ double currentX, currentY, previousX, previousY;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
-Eigen::MatrixXf meshes(3,36); // dynamically resized per object - HARD ...
-Eigen::MatrixXf colors(3, 36); // dynamically resized per object
+Eigen::MatrixXf meshes(3, 8); // dynamically resized per object - HARD ...
+Eigen::MatrixXf colors(3, 8); // dynamically resized per object
 Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
 Eigen::Matrix4f projection(4,4);
@@ -162,45 +164,75 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 void addUnitCube()
 {
   // TODO: USE VBO INDEX TO PREVENT REPEAT VERTICES
-  meshes <<
-  -0.5f,-0.5f,-0.5f,
-	-0.5f,-0.5f, 0.5f,
-	-0.5f, 0.5f, 0.5f,
-	 0.5f, 0.5f,-0.5f,
-	-0.5f,-0.5f,-0.5f,
-	-0.5f, 0.5f,-0.5f,
-	 0.5f,-0.5f, 0.5f,
-	-0.5f,-0.5f,-0.5f,
-	 0.5f,-0.5f,-0.5f,
-	 0.5f, 0.5f,-0.5f,
-	 0.5f,-0.5f,-0.5f,
-	-0.5f,-0.5f,-0.5f,
-	-0.5f,-0.5f,-0.5f,
-	-0.5f, 0.5f, 0.5f,
-	-0.5f, 0.5f,-0.5f,
-	 0.5f,-0.5f, 0.5f,
-	-0.5f,-0.5f, 0.5f,
-	-0.5f,-0.5f,-0.5f,
-	-0.5f, 0.5f, 0.5f,
-	-0.5f,-0.5f, 0.5f,
-	 0.5f,-0.5f, 0.5f,
-	 0.5f, 0.5f, 0.5f,
-	 0.5f,-0.5f,-0.5f,
-	 0.5f, 0.5f,-0.5f,
-	 0.5f,-0.5f,-0.5f,
-	 0.5f, 0.5f, 0.5f,
-	 0.5f,-0.5f, 0.5f,
-	 0.5f, 0.5f, 0.5f,
-	 0.5f, 0.5f,-0.5f,
-	-0.5f, 0.5f,-0.5f,
-	 0.5f, 0.5f, 0.5f,
-	-0.5f, 0.5f,-0.5f,
-	-0.5f, 0.5f, 0.5f,
-	 0.5f, 0.5f, 0.5f,
-	-0.5f, 0.5f, 0.5f,
-	 0.5f,-0.5f, 0.5f;
+  // meshes <<
+  // -0.5f,-0.5f,-0.5f,
+	// -0.5f,-0.5f, 0.5f,
+	// -0.5f, 0.5f, 0.5f,
+	//  0.5f, 0.5f,-0.5f,
+	// -0.5f,-0.5f,-0.5f,
+	// -0.5f, 0.5f,-0.5f,
+	//  0.5f,-0.5f, 0.5f,
+	// -0.5f,-0.5f,-0.5f,
+	//  0.5f,-0.5f,-0.5f,
+	//  0.5f, 0.5f,-0.5f,
+	//  0.5f,-0.5f,-0.5f,
+	// -0.5f,-0.5f,-0.5f,
+	// -0.5f,-0.5f,-0.5f,
+	// -0.5f, 0.5f, 0.5f,
+	// -0.5f, 0.5f,-0.5f,
+	//  0.5f,-0.5f, 0.5f,
+	// -0.5f,-0.5f, 0.5f,
+	// -0.5f,-0.5f,-0.5f,
+	// -0.5f, 0.5f, 0.5f,
+	// -0.5f,-0.5f, 0.5f,
+	//  0.5f,-0.5f, 0.5f,
+	//  0.5f, 0.5f, 0.5f,
+	//  0.5f,-0.5f,-0.5f,
+	//  0.5f, 0.5f,-0.5f,
+	//  0.5f,-0.5f,-0.5f,
+	//  0.5f, 0.5f, 0.5f,
+	//  0.5f,-0.5f, 0.5f,
+	//  0.5f, 0.5f, 0.5f,
+	//  0.5f, 0.5f,-0.5f,
+	// -0.5f, 0.5f,-0.5f,
+	//  0.5f, 0.5f, 0.5f,
+	// -0.5f, 0.5f,-0.5f,
+	// -0.5f, 0.5f, 0.5f,
+	//  0.5f, 0.5f, 0.5f,
+	// -0.5f, 0.5f, 0.5f,
+	//  0.5f,-0.5f, 0.5f;
+    // front
+  // -0.5, -0.5,  0.5,
+  //  0.5, -0.5,  0.5,
+  //  0.5,  0.5,  0.5,
+  // -0.5,  0.5,  0.5,
+  // // back
+  // -0.5, -0.5, -0.5,
+  //  0.5, -0.5, -0.5,
+  //  0.5,  0.5, -0.5,
+  // -0.5,  0.5, -0.5;
+  // indices = {
+  //   // front
+  //   0, 1, 2,
+  //   2, 3, 0,
+  //   // top
+  //   1, 5, 6,
+  //   6, 2, 1,
+  //   // back
+  //   7, 6, 5,
+  //   5, 4, 7,
+  //   // bottom
+  //   4, 0, 3,
+  //   3, 7, 4,
+  //   // left
+  //   4, 5, 1,
+  //   1, 0, 4,
+  //   // right
+  //   3, 2, 6,
+  //   6, 7, 3,
+  //   };
    // meshes /= 70;
-  VBO.update(meshes);
+  // VBO.update(meshes);
 
 
 }
@@ -218,44 +250,44 @@ void addBumpy()
 }
 void colorCube()
 {
-  colors <<
-  0.583f,  0.771f,  0.014f,
-  0.609f,  0.115f,  0.436f,
-  0.327f,  0.483f,  0.844f,
-  0.822f,  0.569f,  0.201f,
-  0.435f,  0.602f,  0.223f,
-  0.310f,  0.747f,  0.185f,
-  0.597f,  0.770f,  0.761f,
-  0.559f,  0.436f,  0.730f,
-  0.359f,  0.583f,  0.152f,
-  0.483f,  0.596f,  0.789f,
-  0.559f,  0.861f,  0.639f,
-  0.195f,  0.548f,  0.859f,
-  0.014f,  0.184f,  0.576f,
-  0.771f,  0.328f,  0.970f,
-  0.406f,  0.615f,  0.116f,
-  0.676f,  0.977f,  0.133f,
-  0.971f,  0.572f,  0.833f,
-  0.140f,  0.616f,  0.489f,
-  0.997f,  0.513f,  0.064f,
-  0.945f,  0.719f,  0.592f,
-  0.543f,  0.021f,  0.978f,
-  0.279f,  0.317f,  0.505f,
-  0.167f,  0.620f,  0.077f,
-  0.347f,  0.857f,  0.137f,
-  0.055f,  0.953f,  0.042f,
-  0.714f,  0.505f,  0.345f,
-  0.783f,  0.290f,  0.734f,
-  0.722f,  0.645f,  0.174f,
-  0.302f,  0.455f,  0.848f,
-  0.225f,  0.587f,  0.040f,
-  0.517f,  0.713f,  0.338f,
-  0.053f,  0.959f,  0.120f,
-  0.393f,  0.621f,  0.362f,
-  0.673f,  0.211f,  0.457f,
-  0.820f,  0.883f,  0.371f,
-  0.982f,  0.099f,  0.879f;
-  VBO_C.update(colors);
+  // colors <<
+  // 0.583f,  0.771f,  0.014f,
+  // 0.609f,  0.115f,  0.436f,
+  // 0.327f,  0.483f,  0.844f,
+  // 0.822f,  0.569f,  0.201f,
+  // 0.435f,  0.602f,  0.223f,
+  // 0.310f,  0.747f,  0.185f,
+  // 0.597f,  0.770f,  0.761f,
+  // 0.559f,  0.436f,  0.730f;
+  // 0.359f,  0.583f,  0.152f,
+  // 0.483f,  0.596f,  0.789f,
+  // 0.559f,  0.861f,  0.639f,
+  // 0.195f,  0.548f,  0.859f,
+  // 0.014f,  0.184f,  0.576f,
+  // 0.771f,  0.328f,  0.970f,
+  // 0.406f,  0.615f,  0.116f,
+  // 0.676f,  0.977f,  0.133f,
+  // 0.971f,  0.572f,  0.833f,
+  // 0.140f,  0.616f,  0.489f,
+  // 0.997f,  0.513f,  0.064f,
+  // 0.945f,  0.719f,  0.592f,
+  // 0.543f,  0.021f,  0.978f,
+  // 0.279f,  0.317f,  0.505f,
+  // 0.167f,  0.620f,  0.077f,
+  // 0.347f,  0.857f,  0.137f,
+  // 0.055f,  0.953f,  0.042f,
+  // 0.714f,  0.505f,  0.345f,
+  // 0.783f,  0.290f,  0.734f,
+  // 0.722f,  0.645f,  0.174f,
+  // 0.302f,  0.455f,  0.848f,
+  // 0.225f,  0.587f,  0.040f,
+  // 0.517f,  0.713f,  0.338f,
+  // 0.053f,  0.959f,  0.120f,
+  // 0.393f,  0.621f,  0.362f,
+  // 0.673f,  0.211f,  0.457f,
+  // 0.820f,  0.883f,  0.371f,
+  // 0.982f,  0.099f,  0.879f;
+  // VBO_C.update(colors);
 
 }
 void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
@@ -396,10 +428,10 @@ int main(void)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
     // On apple we have to load a core profile with forward compatibility
-#ifdef __APPLE__
+  #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
+  #endif
 
     // Create a windowed mode window and its OpenGL context
     window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
@@ -437,52 +469,106 @@ int main(void)
     // attributes are stored in a Vertex Buffer Object (or VBO). This means that
     // the VAO is not the actual object storing the vertex data,
     // but the descriptor of the vertex data.
-    VertexArrayObject VAO_1;
-    VAO_1.init();
-    VAO_1.bind();
-    VAOS.push_back(VAO_1);
+    float vertices[] = {
+      // front
+      -0.5, -0.5,  0.5,
+       0.5, -0.5,  0.5,
+       0.5,  0.5,  0.5,
+      -0.5,  0.5,  0.5,
+      // back
+      -0.5, -0.5, -0.5,
+       0.5, -0.5, -0.5,
+       0.5,  0.5, -0.5,
+      -0.5,  0.5, -0.5,
+    };
+    unsigned int indices[] = {  // note that we start from 0!
+        // front
+        0, 1, 2,
+        2, 3, 0,
+        // top
+        1, 5, 6,
+        6, 2, 1,
+        // back
+        7, 6, 5,
+        5, 4, 7,
+        // bottom
+        4, 0, 3,
+        3, 7, 4,
+        // left
+        4, 5, 1,
+        1, 0, 4,
+        // right
+        3, 2, 6,
+        6, 7, 3,
+    };
+    VAO.init();
+
 
     // Initialize the VBO with the vertices data
     // A VBO is a data container that lives in the GPU memory
-    VBO.init();
-    meshes <<
-    -0.0f,-0.0f,-0.0f,
-  	-0.0f,-0.0f, 0.0f,
-  	-0.0f, 0.0f, 0.0f,
-  	 0.0f, 0.0f,-0.0f,
-  	-0.0f,-0.0f,-0.0f,
-  	-0.0f, 0.0f,-0.0f,
-  	 0.0f,-0.0f, 0.0f,
-  	-0.0f,-0.0f,-0.0f,
-  	 0.0f,-0.0f,-0.0f,
-  	 0.0f, 0.0f,-0.0f,
-  	 0.0f,-0.0f,-0.0f,
-  	-0.0f,-0.0f,-0.0f,
-  	-0.0f,-0.0f,-0.0f,
-  	-0.0f, 0.0f, 0.0f,
-  	-0.0f, 0.0f,-0.0f,
-  	 0.0f,-0.0f, 0.0f,
-  	-0.0f,-0.0f, 0.0f,
-  	-0.0f,-0.0f,-0.0f,
-  	-0.0f, 0.0f, 0.0f,
-  	-0.0f,-0.0f, 0.0f,
-  	 0.0f,-0.0f, 0.0f,
-  	 0.0f, 0.0f, 0.0f,
-  	 0.0f,-0.0f,-0.0f,
-  	 0.0f, 0.0f,-0.0f,
-  	 0.0f,-0.0f,-0.0f,
-  	 0.0f, 0.0f, 0.0f,
-  	 0.0f,-0.0f, 0.0f,
-  	 0.0f, 0.0f, 0.0f,
-  	 0.0f, 0.0f,-0.0f,
-  	-0.0f, 0.0f,-0.0f,
-  	 0.0f, 0.0f, 0.0f,
-  	-0.0f, 0.0f,-0.0f,
-  	-0.0f, 0.0f, 0.0f,
-  	 0.0f, 0.0f, 0.0f,
-  	-0.0f, 0.0f, 0.0f,
-  	 0.0f,-0.0f, 0.0f;
-    VBO.update(meshes);
+    // addUnitCube();
+    // VBO.init();
+    // EBO.init();
+    unsigned int EBO;
+    glGenBuffers(1, &EBO);
+
+    unsigned int VBO;
+    glGenBuffers(1, &VBO);
+    VAO.bind();
+
+    // meshes <<
+    // -0.0f,-0.0f,-0.0f,
+  	// -0.0f,-0.0f, 0.0f,
+  	// -0.0f, 0.0f, 0.0f,
+  	//  0.0f, 0.0f,-0.0f,
+  	// -0.0f,-0.0f,-0.0f,
+  	// -0.0f, 0.0f,-0.0f,
+  	//  0.0f,-0.0f, 0.0f,
+  	// -0.0f,-0.0f,-0.0f,
+  	//  0.0f,-0.0f,-0.0f,
+  	//  0.0f, 0.0f,-0.0f,
+  	//  0.0f,-0.0f,-0.0f,
+  	// -0.0f,-0.0f,-0.0f,
+  	// -0.0f,-0.0f,-0.0f,
+  	// -0.0f, 0.0f, 0.0f,
+  	// -0.0f, 0.0f,-0.0f,
+  	//  0.0f,-0.0f, 0.0f,
+  	// -0.0f,-0.0f, 0.0f,
+  	// -0.0f,-0.0f,-0.0f,
+  	// -0.0f, 0.0f, 0.0f,
+  	// -0.0f,-0.0f, 0.0f,
+  	//  0.0f,-0.0f, 0.0f,
+  	//  0.0f, 0.0f, 0.0f,
+  	//  0.0f,-0.0f,-0.0f,
+  	//  0.0f, 0.0f,-0.0f,
+  	//  0.0f,-0.0f,-0.0f,
+  	//  0.0f, 0.0f, 0.0f,
+  	//  0.0f,-0.0f, 0.0f,
+  	//  0.0f, 0.0f, 0.0f,
+  	//  0.0f, 0.0f,-0.0f,
+  	// -0.0f, 0.0f,-0.0f,
+  	//  0.0f, 0.0f, 0.0f,
+  	// -0.0f, 0.0f,-0.0f,
+  	// -0.0f, 0.0f, 0.0f,
+  	//  0.0f, 0.0f, 0.0f,
+  	// -0.0f, 0.0f, 0.0f,
+  	//  0.0f,-0.0f, 0.0f;
+    // VBO.update(meshes);
+    // glBindVertexArray(VAO);
+    // 2. copy our vertices array in a vertex buffer for OpenGL to use
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // 3. copy our index array in a element buffer for OpenGL to use
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    // 4. then set the vertex attributes pointers
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
+
+    glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs), remember: do NOT unbind the EBO, keep it bound to this VAO
+
 
     // Get the size of the window
     int width, height;
@@ -573,8 +659,8 @@ int main(void)
     //------------------------------------------
     // COLOR MATRIX
     //------------------------------------------
-    VBO_C.init();
-    colorCube();
+    // VBO_C.init();
+    // colorCube();
 
     //------------------------------------------
     // OFF DATA
@@ -595,21 +681,21 @@ int main(void)
             "#version 150 core\n"
                     "in vec3 position;"
                     "uniform mat4 MVP;"
-                    "in vec3 color;"
-                    "out vec3 f_color;"
+                    // "in vec3 color;"
+                    // "out vec3 f_color;"
                     "void main()"
                     "{"
-                    "    gl_Position = MVP * vec4(position, 0.5);"
-                    "    f_color = color;"
+                    "    gl_Position = MVP * vec4(position, 1.0);"
+                    // "    f_color = color;"
                     "}";
     const GLchar* fragment_shader =
             "#version 150 core\n"
-                    "in vec3 f_color;"
+                    // "in vec3 f_color;"
                     "out vec4 outColor;"
                     "uniform vec3 triangleColor;"
                     "void main()"
                     "{"
-                    "    outColor = vec4(f_color, 1.0);"
+                    "    outColor = vec4(triangleColor, 1.0);"
                     "}";
 
     // Compile the two shaders and upload the binary to the GPU
@@ -622,8 +708,8 @@ int main(void)
     // The following line connects the VBO we defined above with the position "slot"
     // in the vertex shader
     cout << "DRAWING" << endl;
-    program.bindVertexAttribArray("position",VBO);
-    program.bindVertexAttribArray("color",VBO_C);
+    // program.bindVertexAttribArray("position",VBO);
+    // program.bindVertexAttribArray("color",VBO_C);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -637,11 +723,10 @@ int main(void)
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
-      for(int i = 0; i < VAOS.size(); i++){
-          VertexArrayObject VAO = VAOS[i];
+      // for(int i = 0; i < VAOS.size(); i++){
+          // VertexArrayObject VAO = VAOS[i];
           // Bind your VAO (not necessary if you have only one)
           VAO.bind();
-
           // Bind your program
           program.bind();
 
@@ -656,7 +741,12 @@ int main(void)
 
           // // Draw triangles
           if(numObjects > 0){
-            glDrawArrays(GL_TRIANGLES, 0, numObjects * 36);
+            // glDrawArrays(GL_TRIANGLES, 0, numObjects * 36);
+            // glBindVertexArray(VAO);
+            // VAO.bind();
+            glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+
           }
 
           // Swap front and back buffers
@@ -664,18 +754,20 @@ int main(void)
 
           // Poll for and process events
           glfwPollEvents();
-      }
+      // }
 
     }
 
     // Deallocate opengl memory
     program.free();
+    // glDeleteBuffers(1, &VBO);
+    // glDeleteBuffers(1, &EBO);
     // VAO_1.free();
-    for(int i = 0; i < VAOS.size(); i++){
-      VertexArrayObject VAO = VAOS[i];
-      VAO.free();
-    }
-    VBO.free();
+    // for(int i = 0; i < VAOS.size(); i++){
+    //   VertexArrayObject VAO = VAOS[i];
+    //   VAO.free();
+    // }
+    // VBO.free();
 
     // Deallocate glfw internals
     glfwTerminate();
