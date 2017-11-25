@@ -8,6 +8,8 @@
 // Linear Algebra Library
 #include <Eigen/Core>
 
+#include <fstream>
+
 // For A x = b solver
 #include <Eigen/Dense>
 
@@ -34,27 +36,43 @@ using namespace Eigen;
 VertexBufferObject VBO;
 VertexBufferObject VBO_I;
 VertexBufferObject VBO_C;
-vector<float> indices;
+vector<VertexArrayObject> VAOS;
+
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
+
 // Number of meshes existing in the scene
-int nummeshes = 1;
-// A cube has 6 faces, 2 triangles per face gives 12 triangles
-Eigen::MatrixXf meshes(3,36);
-Eigen::MatrixXf colors(3, 36);
-Eigen::Matrix4f viewport(4,4);
+int numObjects = 0;
+
+// Keeping track of mouse position
+double currentX, currentY, previousX, previousY;
+
+//----------------------------------
+// VERTEX/TRANSFORMATION/INDEX DATA
+//----------------------------------
+Eigen::MatrixXf meshes(3,36); // dynamically resized per object - HARD ...
+Eigen::MatrixXf colors(3, 36); // dynamically resized per object
 Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
 Eigen::Matrix4f projection(4,4);
-Eigen::Matrix4f view(4,4);
-Eigen::Matrix4f model(4,4);
-Eigen::Matrix4f MVP(4,4);
+Eigen::Matrix4f view(4,4); // control camera position
+Eigen::Matrix4f model(4,4); // dynamically resized per object
+Eigen::Matrix4f MVP(4,4); // dynamically resized per object
 
+//----------------------------------
+// OFF DATA
+//----------------------------------
+pair<MatrixXd, MatrixXd> bunny;
+pair<MatrixXd, MatrixXd> bumpy;
+
+//----------------------------------
+// PERSPECTIVE PROJECTION PARAMETERS
+//----------------------------------
 // FOV angle is hardcoded to 60 degrees
 float theta = (PI/180) * 60;
 
 // near and far are hardcoded
-float n = -0.5;
+float n = -0.1;
 float f = -100.;
 // right and left
 float r;
@@ -63,40 +81,87 @@ float l;
 float t;
 float b;
 
-void drawUnitCube()
+vector<float> split_line(string line, bool F)
+{
+  string extracted;
+  vector<float> data;
+  int z = 0;
+
+  // # of faces is the first character in every line, start at 2 to skip
+  if(F){
+    z = 2;
+  }
+  for(int i = z; i <= line.length(); i++){
+
+    char val = line[i];
+
+    if(val == ' ' || i == line.length()){ // Finished building int
+      // Convert to int and push to data vector
+      data.push_back(atof(extracted.c_str()));
+      extracted = "";
+    }else{ // Still building int
+      extracted.push_back(val);
+    }
+  }
+  return data;
+}
+// Iterates through given OFF file and fills V & F matrices
+pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
+{
+  // Load file
+  string line;
+  ifstream stream(filename.c_str());
+  getline(stream, line); //first line is OFF
+
+  // Get data from 2nd line
+  getline(stream, line);
+  vector<float> data = split_line(line, false);
+
+  // Extract metadata into vars
+  int vertices = data[0];
+  int faces = data[1];
+  MatrixXd V = MatrixXd::Zero(vertices, 3);
+  MatrixXd F = MatrixXd::Zero(faces, 3);
+  vector<float> line_data;
+
+  // Fill V & F matrices from file
+  for(int v = 0; v < vertices; v++){
+    getline(stream, line);
+    line_data = split_line(line, false);
+
+    for(int j = 0; j < 3; j++){
+      if(enlarge){
+        V(v,j) = (line_data[j]*3);
+      }else{
+        V(v,j) = (line_data[j]/10);
+      }
+      if(!enlarge){ //cube
+        V(v,0) += 0.1;
+        V(v,1) += 0.1;
+      }else{ //bunny
+        V(v,0) -= 0.15;
+        V(v,1) -= 0.05;
+      }
+    }
+
+  }
+
+  for(int f = 0; f < faces; f++){
+    getline(stream, line);
+    line_data = split_line(line, true);
+    for(int j = 0; j < 3; j++){
+      F(f,j) = line_data[j];
+    }
+  }
+
+  // Construct pair and return
+  pair<MatrixXd, MatrixXd> matrices(V, F);
+  return matrices;
+
+}
+void addUnitCube()
 {
   // TODO: USE VBO INDEX TO PREVENT REPEAT VERTICES
-  // // front
-  // meshes <<
-  // -0.5, -0.5,  0.5,
-  //  0.5, -0.5,  0.5,
-  //  0.5,  0.5,  0.5,
-  // -0.5,  0.5,  0.5,
-  // // back
-  // -0.5, -0.5, -0.5,
-  //  0.5, -0.5, -0.5,
-  //  0.5,  0.5, -0.5,
-  // -0.5,  0.5, -0.5,
-  // indices = {
-  //    // front
-  //    0, 1, 2,
-  //    2, 3, 0,
-  //    // top
-  //    1, 5, 6,
-  //    6, 2, 1,
-  //    // back
-  //    7, 6, 5,
-  //    5, 4, 7,
-  //    // bottom
-  //    4, 0, 3,
-  //    3, 7, 4,
-  //    // left
-  //    4, 5, 1,
-  //    1, 0, 4,
-  //    // right
-  //    3, 2, 6,
-  //    6, 7, 3
-  //  };
   meshes <<
   -0.5f,-0.5f,-0.5f,
 	-0.5f,-0.5f, 0.5f,
@@ -134,8 +199,22 @@ void drawUnitCube()
 	 0.5f, 0.5f, 0.5f,
 	-0.5f, 0.5f, 0.5f,
 	 0.5f,-0.5f, 0.5f;
+   // meshes /= 70;
   VBO.update(meshes);
 
+
+}
+void addBunny()
+{
+  // Create data matrices from OFF files
+  MatrixXd V_bunny = bunny.first;
+  MatrixXd F_bunny = bunny.second;
+}
+void addBumpy()
+{
+  // Create data matrices from OFF files
+  MatrixXd V_bumpy = bumpy.first;
+  MatrixXd F_bumpy = bumpy.second;
 }
 void colorCube()
 {
@@ -179,9 +258,36 @@ void colorCube()
   VBO_C.update(colors);
 
 }
+void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
+{
+  // Get the size of the window
+  int width, height;
+  glfwGetWindowSize(window, &width, &height);
+
+  // Convert screen position to world coordinates
+  Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
+  Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
+  Eigen::Vector4f p_world = view.inverse()*p_canonical;
+
+  double xworld = p_world[0];
+  double yworld = p_world[1];
+
+  // Keep track of mouse positions
+  if(!previousX && !previousY)
+  {
+    previousX = xworld;
+    previousY = yworld;
+  }else{
+    previousX = currentX;
+    previousY = currentY;
+
+    currentX = xworld;
+    currentY = yworld;
+  }
+}
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    // Get the position of the mouse in the window
+  // Get the position of the mouse in the window
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
 
@@ -190,37 +296,88 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     glfwGetWindowSize(window, &width, &height);
 
     // Convert screen position to world coordinates
-    double xworld = ((xpos/double(width))*2)-1;
-    double yworld = (((height-1-ypos)/double(height))*2)-1; // NOTE: y axis is flipped in glfw
+    Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
+    Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
+    Eigen::Vector4f p_world = view.inverse()*p_canonical;
 
-    // Update the position of the first vertex if the left button is pressed
-    // if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-        // V.col(0) << xworld, yworld;
+    double xworld = p_world[0];
+    double yworld = p_world[1];
 
-    // Upload the change to the GPU
-    // VBO.update(V);
+    if(action == GLFW_RELEASE){
+      // Check if an object was clicked on and select it
+
+    }else if(action == GLFW_PRESS){
+      // If an object is selected, translate it
+
+    }
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     // Update the position of the first vertex if the keys 1,2, or 3 are pressed
-    switch (key)
-    {
+    if(action == GLFW_RELEASE){
+      switch (key)
+      {
         case  GLFW_KEY_1:
             cout << "Adding unit cube to the origin" << endl;
+            addUnitCube();
+            numObjects++;
             break;
         case GLFW_KEY_2:
             cout << "Adding bumpy cube to the origin" << endl;
+            addBumpy();
+            numObjects++;
             break;
         case  GLFW_KEY_3:
             cout << "Adding bunny to the origin" << endl;
+            addBunny();
+            numObjects++;
             break;
+        case  GLFW_KEY_7:
+            cout << "Wireframe" << endl;
+            break;
+        case  GLFW_KEY_8:
+            cout << "Flat Shading" << endl;
+            break;
+        case  GLFW_KEY_9:
+            cout << "Phong Shading" << endl;
+            break;
+        case  GLFW_KEY_H:
+            cout << "Rotating 10 degrees clockwise" << endl;
+            break;
+        case  GLFW_KEY_J:
+            cout << "Rotating 10 degrees counter-clockwise" << endl;
+            break;
+        case  GLFW_KEY_K:
+            cout << "Scaling UP by 25 percent" << endl;
+            break;
+        case  GLFW_KEY_L:
+            cout << "Scaling DOWN by 25 percent" << endl;
+            break;
+        case  GLFW_KEY_O:
+            cout << "Orthographic Projection" << endl;
+            ortho = true;
+            break;
+        case  GLFW_KEY_P:
+            cout << "Perspective Projection" << endl;
+            ortho = false;
+            break;
+        case GLFW_KEY_RIGHT:
+          cout << "Moving camera right" << endl;
+          break;
+        case GLFW_KEY_LEFT:
+          cout << "Moving camera left" << endl;
+          break;
+        case GLFW_KEY_UP:
+          cout << "Moving camera up" << endl;
+          break;
+        case GLFW_KEY_DOWN:
+          cout << "Moving camera down" << endl;
+          break;
         default:
             break;
+      }
     }
-
-    // Upload the change to the GPU
-    // VBO.update(V);
 }
 
 int main(void)
@@ -280,15 +437,52 @@ int main(void)
     // attributes are stored in a Vertex Buffer Object (or VBO). This means that
     // the VAO is not the actual object storing the vertex data,
     // but the descriptor of the vertex data.
-    VertexArrayObject VAO;
-    VAO.init();
-    VAO.bind();
+    VertexArrayObject VAO_1;
+    VAO_1.init();
+    VAO_1.bind();
+    VAOS.push_back(VAO_1);
 
     // Initialize the VBO with the vertices data
     // A VBO is a data container that lives in the GPU memory
     VBO.init();
-
-    drawUnitCube();
+    meshes <<
+    -0.0f,-0.0f,-0.0f,
+  	-0.0f,-0.0f, 0.0f,
+  	-0.0f, 0.0f, 0.0f,
+  	 0.0f, 0.0f,-0.0f,
+  	-0.0f,-0.0f,-0.0f,
+  	-0.0f, 0.0f,-0.0f,
+  	 0.0f,-0.0f, 0.0f,
+  	-0.0f,-0.0f,-0.0f,
+  	 0.0f,-0.0f,-0.0f,
+  	 0.0f, 0.0f,-0.0f,
+  	 0.0f,-0.0f,-0.0f,
+  	-0.0f,-0.0f,-0.0f,
+  	-0.0f,-0.0f,-0.0f,
+  	-0.0f, 0.0f, 0.0f,
+  	-0.0f, 0.0f,-0.0f,
+  	 0.0f,-0.0f, 0.0f,
+  	-0.0f,-0.0f, 0.0f,
+  	-0.0f,-0.0f,-0.0f,
+  	-0.0f, 0.0f, 0.0f,
+  	-0.0f,-0.0f, 0.0f,
+  	 0.0f,-0.0f, 0.0f,
+  	 0.0f, 0.0f, 0.0f,
+  	 0.0f,-0.0f,-0.0f,
+  	 0.0f, 0.0f,-0.0f,
+  	 0.0f,-0.0f,-0.0f,
+  	 0.0f, 0.0f, 0.0f,
+  	 0.0f,-0.0f, 0.0f,
+  	 0.0f, 0.0f, 0.0f,
+  	 0.0f, 0.0f,-0.0f,
+  	-0.0f, 0.0f,-0.0f,
+  	 0.0f, 0.0f, 0.0f,
+  	-0.0f, 0.0f,-0.0f,
+  	-0.0f, 0.0f, 0.0f,
+  	 0.0f, 0.0f, 0.0f,
+  	-0.0f, 0.0f, 0.0f,
+  	 0.0f,-0.0f, 0.0f;
+    VBO.update(meshes);
 
     // Get the size of the window
     int width, height;
@@ -319,20 +513,11 @@ int main(void)
     0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
     0., 0., -1., 0;
 
-    Vector4f near(l, b, n, 1.); //-0.1
-    Vector4f far(r, t, f, 1.);
-
-    cout << "Near orthographic map: \n"<< orthographic * near << endl;
-    cout << "Far orthographic map: \n"<<  orthographic * far << endl;
-    cout << "Near perspective map: \n" << perspective * near << endl;
-    cout << "Far perspective map: \n" << perspective * far << endl;
-
-    // projection = orthographic;
-    projection =  perspective;
-    // cout << "Orthographic: \n" << orthographic << endl;
-    // cout << "Perspective: \n" << perspective << endl;
-    // cout << "Projection: \n"<< projection << endl;
-    // cout << "Determinant: \n"<< projection.determinant() << endl;
+    if(ortho){
+      projection = orthographic;
+    }else{
+      projection = perspective;
+    }
 
     //------------------------------------------
     // VIEW/CAMERA MATRIX
@@ -341,7 +526,7 @@ int main(void)
     Vector3f g(0.0, 0.0, 0.0); //target point, where we want to look
     Vector3f t(0.0, 0.5, 0.0); //up vector
 
-    Vector3f w = (e - g).normalized();
+    Vector3f w = (e- g).normalized();
     Vector3f u = (t.cross(w).normalized());
     Vector3f v = w.cross(u);
 
@@ -367,27 +552,23 @@ int main(void)
     //------------------------------------------
     // MODEL MATRIX
     //------------------------------------------
-    float degree = (PI/180) * 40;
+    float degree = (PI/180) * -45;
     model <<
     cos(degree),  0., sin(degree), 0,
     0.,           1.,           0, 0,
     -sin(degree), 0, cos(degree), 0,
     0,          0,              0, 1;
 
+    // model <<
+    // 1., 0., 0., 0.,
+    // 0., 1., 0., 0.,
+    // 0., 0., 1., 0.,
+    // 0., 0., 0., 1.;
+
     //------------------------------------------
     // MVP MATRIX
     //------------------------------------------
-    // MVP = projection * view * model;
-    // MVP = view * model;
     MVP = projection * view * model;
-    // QUESTIONS:
-    // TODO: Difference between orthographic and perspective projection
-    // with unit cube is ridiculous ?
-    // TODO: What should the default view be - orthographic or perspective?
-
-
-    // TODO: VBO INDEXING!!!!!! Vertices missing
-
 
     //------------------------------------------
     // COLOR MATRIX
@@ -395,6 +576,16 @@ int main(void)
     VBO_C.init();
     colorCube();
 
+    //------------------------------------------
+    // OFF DATA
+    //------------------------------------------
+    bunny = read_off_data("../data/bunny.off", true);
+    bumpy = read_off_data("../data/bumpy_cube.off", false);
+    // V = bunny/bumpy.first - holds 3D coordinates
+    // F = bunny/bumpy.second - holds indices of triangles
+    // indices from F matrix into 3D coordinates from V
+    cout << "Bunny matrix size: " << bunny.second.size() << endl;
+    cout << "Bumpy cube matrix size: " << bumpy.second.size() << endl;
 
     // Initialize the OpenGL Program
     // A program controls the OpenGL pipeline and it must contains
@@ -430,8 +621,10 @@ int main(void)
     // The vertex shader wants the position of the vertices as an input.
     // The following line connects the VBO we defined above with the position "slot"
     // in the vertex shader
+    cout << "DRAWING" << endl;
     program.bindVertexAttribArray("position",VBO);
     program.bindVertexAttribArray("color",VBO_C);
+
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
 
@@ -444,36 +637,44 @@ int main(void)
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
-        // Bind your VAO (not necessary if you have only one)
-        VAO.bind();
+      for(int i = 0; i < VAOS.size(); i++){
+          VertexArrayObject VAO = VAOS[i];
+          // Bind your VAO (not necessary if you have only one)
+          VAO.bind();
 
-        // Bind your program
-        program.bind();
+          // Bind your program
+          program.bind();
 
-        // Clear the framebuffer
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LESS);
-        glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-        auto t_now = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
-        glUniform3f(program.uniform("triangleColor"), (float)(sin(time * 4.0f) + 0.5f) / 2.0f, 0.0f, 0.0f);
-        // Set MVP matrix uniform
-        glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+          // Clear the framebuffer
+          glEnable(GL_DEPTH_TEST);
+          glDepthFunc(GL_LESS);
+          glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+          glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-        // Draw triangles
+          // Set MVP matrix uniform
+          glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
 
-        // Swap front and back buffers
-        glfwSwapBuffers(window);
+          // // Draw triangles
+          if(numObjects > 0){
+            glDrawArrays(GL_TRIANGLES, 0, numObjects * 36);
+          }
 
-        // Poll for and process events
-        glfwPollEvents();
+          // Swap front and back buffers
+          glfwSwapBuffers(window);
+
+          // Poll for and process events
+          glfwPollEvents();
+      }
+
     }
 
     // Deallocate opengl memory
     program.free();
-    VAO.free();
+    // VAO_1.free();
+    for(int i = 0; i < VAOS.size(); i++){
+      VertexArrayObject VAO = VAOS[i];
+      VAO.free();
+    }
     VBO.free();
 
     // Deallocate glfw internals
