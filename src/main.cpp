@@ -33,15 +33,16 @@ using namespace std;
 using namespace Eigen;
 
 // VertexBufferObject wrapper
-vector<unsigned int> EBOS;
-vector<unsigned int> VBOS;
-vector<VertexArrayObject> VAOS;
-// unsigned int indices[];
+VertexBufferObject VBO;
+MatrixXf V(3,36);
 
+
+enum ObjectType { Unit, Bunny, Bumpy };
+vector<ObjectType> types;
 // Orthographic or perspective projection?
 bool ortho = false;
 
-// Number of meshes existing in the scene
+// Number of objects existing in the scene
 int numObjects = 0;
 
 // Keeping track of mouse position
@@ -50,7 +51,7 @@ double currentX, currentY, previousX, previousY;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
-Eigen::MatrixXf colors(3, 8); // dynamically resized per object
+Eigen::MatrixXf colors(3, 36); // dynamically resized per object
 Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
 Eigen::Matrix4f projection(4,4);
@@ -79,6 +80,7 @@ float l;
 // top and bottom
 float t;
 float b;
+
 
 vector<float> split_line(string line, bool F)
 {
@@ -228,109 +230,106 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   // MODEL MATRIX
   //------------------------------------------
-  // float degree = (PI/180) * -60;
-  // model <<
-  // cos(degree),  0., sin(degree), 0,
-  // 0.,           1.,           0, 0,
-  // -sin(degree), 0, cos(degree), 0,
-  // 0,          0,              0, 1;
-
+  float degree = (PI/180) * -45;
   model <<
-  1., 0., 0., 0.,
-  0., 1., 0., 0.,
-  0., 0., 1., 0.,
-  0., 0., 0., 1.;
+  cos(degree),  0., sin(degree), 0,
+  0.,           1.,           0, 0,
+  -sin(degree), 0, cos(degree), 0,
+  0,          0,              0, 1;
+
+  // model <<
+  // 1., 0., 0., 0.,
+  // 0., 1., 0., 0.,
+  // 0., 0., 1., 0.,
+  // 0., 0., 0., 1.;
 
   //------------------------------------------
   // MVP MATRIX
   //------------------------------------------
   MVP = projection * view * model;
+  // MVP = model;
 
 }
 void addUnitCube()
 {
-  float vertices[] = {
-    // front
-    -0.5, -0.5,  0.5,
-     0.5, -0.5,  0.5,
-     0.5,  0.5,  0.5,
-    -0.5,  0.5,  0.5,
-    // back
-    -0.5, -0.5, -0.5,
-     0.5, -0.5, -0.5,
-     0.5,  0.5, -0.5,
-    -0.5,  0.5, -0.5,
-  };
-  if(ortho){
-    for(int i = 0; i < sizeof(vertices)/sizeof(vertices[0]); i++){
-      vertices[i] = vertices[i]/70;
-    }
+  ObjectType t = Unit;
+  types.push_back(t);
+
+  // Hold onto start index
+  int start = 0;
+  if(numObjects > 0){
+    start = V.cols();
+    V.conservativeResize(3, V.cols() + 36);
+    cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   }
-  unsigned int indices[] = {  // note that we start from 0!
-      // front
-      0, 1, 2,
-      2, 3, 0,
-      // top
-      1, 5, 6,
-      6, 2, 1,
-      // back
-      7, 6, 5,
-      5, 4, 7,
-      // bottom
-      4, 0, 3,
-      3, 7, 4,
-      // left
-      4, 5, 1,
-      1, 0, 4,
-      // right
-      3, 2, 6,
-      6, 7, 3,
-  };
-  VertexArrayObject VAO;
-  VAO.init();
+  // BOTTOM
+  V.col(start) << 0.5, -0.5, 0.5;
+  V.col(start + 1) <<   0.5, -0.5, -0.5;
+  V.col(start + 2) <<   -0.5,-0.5, -0.5;
+  V.col(start + 3) << -0.5,-0.5, -0.5;
+  V.col(start + 4) <<  -0.5, -0.5, 0.5;
+  V.col(start + 5) <<  0.5, -0.5, 0.5;
+
+  // BACK
+  V.col(start + 6) << 0.5,  0.5, -0.5;
+  V.col(start + 7) <<  -0.5, -0.5, -0.5;
+  V.col(start + 8) << 0.5, -0.5, -0.5;
+  V.col(start + 9) << 0.5,  0.5, -0.5;
+  V.col(start + 10) << -0.5, -0.5, -0.5;
+  V.col(start + 11) << -0.5,  0.5, -0.5;
+
+  // LEFT
+  V.col(start + 12) << -0.5,  0.5, -0.5;
+  V.col(start + 13) << -0.5,  0.5,  0.5;
+  V.col(start + 14) << -0.5, -0.5, -0.5;
+  V.col(start + 15) << -0.5, -0.5, -0.5;
+  V.col(start + 16) <<  -0.5,  0.5,  0.5;
+  V.col(start + 17) <<  -0.5, -0.5,  0.5;
+
+  // RIGHT
+  V.col(start + 18) << 0.5, -0.5,  0.5;
+  V.col(start + 19) << 0.5,  0.5,  0.5;
+  V.col(start + 20) << 0.5, -0.5, -0.5;
+  V.col(start + 21) << 0.5, -0.5, -0.5;
+  V.col(start + 22) << 0.5,  0.5,  0.5;
+  V.col(start + 23) << 0.5,  0.5, -0.5;
+
+  // TOP
+  V.col(start + 24) << 0.5,  0.5,  0.5;
+  V.col(start + 25) << 0.5,  0.5, -0.5;
+  V.col(start + 26) << -0.5, 0.5, 0.5;
+  V.col(start + 27) << -0.5, 0.5, -0.5;
+  V.col(start + 28) << 0.5,  0.5, -0.5;
+  V.col(start + 29) << -0.5, 0.5, 0.5;
+
+  // FRONT
+  V.col(start + 30) <<  -0.5, -0.5,  0.5;
+  V.col(start + 31) <<   0.5, -0.5,  0.5;
+  V.col(start + 32) <<   0.5,  0.5,  0.5;
+  V.col(start + 33) <<  -0.5,  0.5,  0.5;
+  V.col(start + 34) <<   -0.5, -0.5,  0.5;
+  V.col(start + 35) <<  0.5,  0.5,  0.5;
 
 
-  // Initialize the VBO with the vertices data
-  // A VBO is a data container that lives in the GPU memory
-  unsigned int EBO;
-  glGenBuffers(1, &EBO);
-
-  unsigned int VBO;
-  glGenBuffers(1, &VBO);
-  VAO.bind();
-
-  // 2. copy our vertices array in a vertex buffer for OpenGL to use
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-  // 3. copy our index array in a element buffer for OpenGL to use
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-  // 4. then set the vertex attributes pointers
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-  glEnableVertexAttribArray(0);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0); // Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound vertex buffer object so afterwards we can safely unbind
-
-  glBindVertexArray(0); // Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs), remember: do NOT unbind the EBO, keep it bound to this VAO
-
-  numObjects++;
-
-  VAOS.push_back(VAO);
-  EBOS.push_back(EBO);
-  VBOS.push_back(VBO);
+  if(ortho){
+    V.block(0, start, 3, 36) /= 70;
+  }
+  VBO.update(V);
 
 }
 void addBunny()
 {
   // Create data matrices from OFF files
-  MatrixXd V_bunny = bunny.first;
-  MatrixXd F_bunny = bunny.second;
+  MatrixXd V = bunny.first;
+  MatrixXd F = bunny.second;
+
 }
 void addBumpy()
 {
   // Create data matrices from OFF files
-  MatrixXd V_bumpy = bumpy.first;
-  MatrixXd F_bumpy = bumpy.second;
+  MatrixXd V = bumpy.first;
+  MatrixXd F = bumpy.second;
+
 }
 void colorCube()
 {
@@ -548,6 +547,54 @@ int main(void)
     printf("Supported OpenGL is %s\n", (const char*)glGetString(GL_VERSION));
     printf("Supported GLSL is %s\n", (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
 
+    VertexArrayObject VAO;
+    VAO.init();
+    VAO.bind();
+
+    // Initialize the VBO with the vertices data
+    // A VBO is a data container that lives in the GPU memory
+    VBO.init();
+
+    V <<
+    -0.0, -0.0,  0.0,
+     0.0, -0.0,  0.0,
+     0.0, -0.0, -0.0, //bottom triangle
+    -0.0, -0.0, -0.0,
+    -0.0, -0.0,  0.0,
+     0.0, -0.0, -0.0, //upper triangle
+    -0.0, -0.0, -0.0,
+     0.0, -0.0, -0.0,
+     0.0,  0.0, -0.0, //bottom triangle
+    -0.0,  0.0, -0.0,
+    -0.0, -0.0, -0.0,
+     0.0,  0.0, -0.0, //upper triangle
+     -0.0, -0.0,  0.0,
+     -0.0,  0.0,  0.0,
+     -0.0, -0.0, -0.0, //bottom triangle
+     -0.0,  0.0,  0.0,
+     -0.0, -0.0, -0.0,
+     -0.0,  0.0, -0.0, //upper triangle
+     0.0, -0.0,  0.0,
+     0.0,  0.0,  0.0,
+     0.0, -0.0, -0.0, //bottom triangle
+     0.0, -0.0, -0.0,
+     0.0,  0.0,  0.0,
+     0.0,  0.0, -0.0, //upper triangle
+     0.0,  0.0,  0.0,
+     0.0,  0.0, -0.0,
+     -0.0, 0.0, 0.0, //bottom triangle
+     -0.0, 0.0, -0.0,
+     0.0,  0.0, -0.0,
+     -0.0, 0.0, 0.0, //upper triangle
+     -0.0, -0.0,  0.0,
+      0.0, -0.0,  0.0,
+      0.0,  0.0,  0.0, //bottom triangle
+     -0.0, -0.0,  0.0,
+      0.0,  0.0,  0.0,
+     -0.0,  0.0,  0.0; //upper triangle
+     VBO.update(V);
+
+
     // Initialize the MVP uniform
     initializeMVP(window);
 
@@ -559,8 +606,8 @@ int main(void)
     // V = bunny/bumpy.first - holds 3D coordinates
     // F = bunny/bumpy.second - holds indices of triangles
     // indices from F matrix into 3D coordinates from V
-    cout << "Bunny matrix size: " << bunny.second.size() << endl;
-    cout << "Bumpy cube matrix size: " << bumpy.second.size() << endl;
+    cout << "Bunny V size: " << bunny.first.cols() << "," << bunny.first.rows() << endl;
+    cout << "Bunny F  size: " << bunny.second.cols() << "," << bunny.second.rows() <<  endl;
 
     // Initialize the OpenGL Program
     // A program controls the OpenGL pipeline and it must contains
@@ -597,7 +644,7 @@ int main(void)
     // The following line connects the VBO we defined above with the position "slot"
     // in the vertex shader
     cout << "DRAWING" << endl;
-    // program.bindVertexAttribArray("position",VBO);
+    program.bindVertexAttribArray("position",VBO);
     // program.bindVertexAttribArray("color",VBO_C);
 
     // Save the current time --- it will be used to dynamically change the triangle color
@@ -608,27 +655,23 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
       // Bind your program
       program.bind();
       // Clear the framebuffer
-      glEnable(GL_DEPTH_TEST);
-      glDepthFunc(GL_LESS);
+      // glEnable(GL_DEPTH_TEST);
+      // glDepthFunc(GL_LESS);
       glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+      glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
 
-      for(int i = 0; i < VAOS.size(); i++){
-          VertexArrayObject VAO = VAOS[i];
-          VAO.bind();
-          // Set MVP matrix uniform
-          glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
-          // Draw triangles
-          glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
-          glBindVertexArray(0);
+      if(numObjects > 0){
+        glDrawArrays(GL_TRIANGLES, 0, 36);
       }
+
       // Swap front and back buffers
       glfwSwapBuffers(window);
 
@@ -638,14 +681,14 @@ int main(void)
     }
     // Deallocate opengl memory
     program.free();
-    for(int i = 0; i < VAOS.size(); i++){
-      VertexArrayObject VAO = VAOS[i];
-      unsigned int EBO = EBOS[i];
-      unsigned int  VBO = VBOS[i];
-      glDeleteBuffers(1, &VBO);
-      glDeleteBuffers(1, &EBO);
-      VAO.free();
-    }
+    // for(int i = 0; i < VAOS.size(); i++){
+    //   VertexArrayObject VAO = VAOS[i];
+    //   unsigned int EBO = EBOS[i];
+    //   unsigned int  VBO = VBOS[i];
+    //   glDeleteBuffers(1, &VBO);
+    //   glDeleteBuffers(1, &EBO);
+    //   VAO.free();
+    // }
 
     // Deallocate glfw internals
     glfwTerminate();
