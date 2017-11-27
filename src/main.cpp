@@ -36,9 +36,10 @@ using namespace Eigen;
 VertexBufferObject VBO;
 MatrixXf V(3,36);
 
-
+// Create an object type
 enum ObjectType { Unit, Bunny, Bumpy };
 vector<ObjectType> types;
+
 // Orthographic or perspective projection?
 bool ortho = false;
 
@@ -132,16 +133,16 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 
     for(int j = 0; j < 3; j++){
       if(enlarge){
-        V(v,j) = (line_data[j]*3);
+        V(v,j) = (line_data[j]*10);
       }else{
         V(v,j) = (line_data[j]/10);
       }
       if(!enlarge){ //cube
-        V(v,0) += 0.1;
-        V(v,1) += 0.1;
+        // V(v,0) += 0.1;
+        // V(v,1) += 0.1;
       }else{ //bunny
-        V(v,0) -= 0.15;
-        V(v,1) -= 0.05;
+        V(v,0) += 0.05;
+        V(v,1) -= 0.35;
       }
     }
 
@@ -230,7 +231,7 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   // MODEL MATRIX
   //------------------------------------------
-  float degree = (PI/180) * -45;
+  float degree = (PI/180) * 0;
   model <<
   cos(degree),  0., sin(degree), 0,
   0.,           1.,           0, 0,
@@ -319,17 +320,71 @@ void addUnitCube()
 }
 void addBunny()
 {
+  ObjectType t = Bunny;
+  types.push_back(t);
   // Create data matrices from OFF files
-  MatrixXd V = bunny.first;
-  MatrixXd F = bunny.second;
+  MatrixXd V_bunny = bunny.first;
+  MatrixXd F_bunny = bunny.second;
+
+  // Hold onto start index
+  int start = 0;
+  if(numObjects > 0){
+    start = V.cols();
+    V.conservativeResize(3, V.cols() + 3000);
+  }else{
+    V.conservativeResize(3, 3000);
+  }
+  cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
+  // Iterate through columns of V and get 3 3D points to build 1 triangle
+  cout << "F_bunny shape: " << F_bunny.rows() << "," << F_bunny.cols() << endl;
+  for(int i = 0; i < F_bunny.rows(); i++)
+  {
+    for(int j = 0; j < F_bunny.cols(); j++)
+    {
+      vector<float> vertices;
+      int idx = F_bunny(i,j);
+      // take the row from idx and push the 3 points for 1 vertex
+      for(int x = 0; x < 3; x++){
+        vertices.push_back(V_bunny(idx,x));
+      }
+      V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+    }
+  }
+  VBO.update(V);
 
 }
 void addBumpy()
 {
+  ObjectType t = Bumpy;
+  types.push_back(t);
   // Create data matrices from OFF files
-  MatrixXd V = bumpy.first;
-  MatrixXd F = bumpy.second;
-
+  MatrixXd V_bumpy = bumpy.first;
+  MatrixXd F_bumpy = bumpy.second;
+  // Hold onto start index
+  int start = 0;
+  if(numObjects > 0){
+    start = V.cols();
+    V.conservativeResize(3, V.cols() + 3000);
+  }else{
+    V.conservativeResize(3, 3000);
+  }
+  cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
+  // Iterate through columns of V and get 3 3D points to build 1 triangle
+  cout << "F_bumpy shape: " << F_bumpy.rows() << "," << F_bumpy.cols() << endl;
+  for(int i = 0; i < F_bumpy.rows(); i++)
+  {
+    for(int j = 0; j < F_bumpy.cols(); j++)
+    {
+      vector<float> vertices;
+      int idx = F_bumpy(i,j);
+      // take the row from idx and push the 3 points for 1 vertex
+      for(int x = 0; x < 3; x++){
+        vertices.push_back(V_bumpy(idx,x));
+      }
+      V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+    }
+  }
+  VBO.update(V);
 }
 void colorCube()
 {
@@ -655,7 +710,7 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-    // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
@@ -669,7 +724,24 @@ int main(void)
       glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
 
       if(numObjects > 0){
-        glDrawArrays(GL_TRIANGLES, 0, 36);
+        int start = 0;
+        for(int i = 0; i < types.size(); i++){
+          ObjectType t = types[i];
+          switch(t){
+            case Unit:
+              glDrawArrays(GL_TRIANGLES, start, 36);
+              start += 36;
+              break;
+            case Bunny:
+              glDrawArrays(GL_TRIANGLES, start, 3000);
+              start += 3000;
+              break;
+            case Bumpy:
+              glDrawArrays(GL_TRIANGLES, start, 3000);
+              start += 3000;
+              break;
+          }
+        }
       }
 
       // Swap front and back buffers
