@@ -53,7 +53,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -253,18 +253,18 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   // MODEL MATRIX
   //------------------------------------------
-  float degree = (PI/180) * 0;
-  model <<
-  cos(degree),  0., sin(degree), 0,
-  0.,           1.,           0, 0,
-  -sin(degree), 0, cos(degree), 0,
-  0,          0,              0, 1;
-
+  // float degree = (PI/180) * 10;
   // model <<
-  // 1., 0., 0., 0.,
-  // 0., 1., 0., 0.,
-  // 0., 0., 1., 0.,
-  // 0., 0., 0., 1.;
+  // cos(degree),  0., sin(degree), 0,
+  // 0.,           1.,           0, 0,
+  // -sin(degree), 0, cos(degree), 0,
+  // 0,          0,              0, 1;
+
+  model <<
+  1., 0., 0., 0.,
+  0., 1., 0., 0.,
+  0., 0., 1., 0.,
+  0., 0., 0., 1.;
 
   //------------------------------------------
   // MVP MATRIX
@@ -590,10 +590,12 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     if(action == GLFW_RELEASE){
       // Check if an object was clicked on and select it
       Vector3f ray_direction = RowVector3f(0.,0.,-1.);
+
       // Construct ray and convert to world coordinates
       Vector3f ray_screen(xpos, ypos, 0.);
-      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
-      Eigen::Vector4f ray_world = view.inverse()*p_canonical;
+      Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
+      Vector4f ray_projection = projection.inverse() * ray_canonical;
+      Vector4f ray_world = view.inverse()*ray_projection;
 
       int start = 0;
       for(int t = 0; t < types.size(); t++){
@@ -602,8 +604,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         // Convert ray from world to object coordinates
         Matrix4f model_block = model.block(0, (t * 4), 4, 4).inverse();
         Vector4f pseudo_ray = model_block * ray_world;
-        Vector3f ray_origin(pseudo_ray[0], pseudo_ray[1], pseudo_ray[2]);
+        Vector3f ray_origin;
 
+        // Cut off the homogenous coordinate for intersection test
+        if(ortho){
+          ray_origin << pseudo_ray[0], pseudo_ray[1], pseudo_ray[2];
+        }else{
+          ray_origin << pseudo_ray[0]/pseudo_ray[3], pseudo_ray[1]/pseudo_ray[3], pseudo_ray[2]/pseudo_ray[3];
+        }
         // Perform ray tracing based on object type & position in V
         switch(type){
           case Unit:
