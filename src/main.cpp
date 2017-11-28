@@ -53,7 +53,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -153,7 +153,7 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
       if(enlarge){
         V(v,j) = (line_data[j]*8);
       }else{
-        V(v,j) = (line_data[j]/8);
+        V(v,j) = (line_data[j]/8 );
       }
       if(!enlarge){ //cube
         // V(v,0) += 0.1;
@@ -870,7 +870,7 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
