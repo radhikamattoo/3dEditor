@@ -32,13 +32,25 @@
 using namespace std;
 using namespace Eigen;
 
-// VertexBufferObject wrapper
+// Vertices
 VertexBufferObject VBO;
 MatrixXf V(3,36);
+
+// Colors
+VertexBufferObject VBO_C;
+MatrixXf C(3,36);
+
+// Normals
+VertexBufferObject VBO_N;
+MatrixXf N(3,36);
 
 // Create an object type
 enum ObjectType { Unit, Bunny, Bumpy };
 vector<ObjectType> types;
+
+// Create a rendering type
+enum RenderType { Fill, Wireframe, Flat, Phong };
+vector<RenderType> renders;
 
 // Orthographic or perspective projection?
 bool ortho = false;
@@ -48,6 +60,12 @@ int numObjects = 0;
 
 // Keeping track of mouse position
 double currentX, currentY, previousX, previousY;
+
+// Is an object selected?
+bool selected = false;
+
+// Light position
+Vector3f lightPos(1.2, 1.0, 2.0);
 
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
@@ -133,9 +151,9 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 
     for(int j = 0; j < 3; j++){
       if(enlarge){
-        V(v,j) = (line_data[j]*10);
+        V(v,j) = (line_data[j]*8);
       }else{
-        V(v,j) = (line_data[j]/10);
+        V(v,j) = (line_data[j]/8);
       }
       if(!enlarge){ //cube
         // V(v,0) += 0.1;
@@ -159,6 +177,10 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   // Construct pair and return
   pair<MatrixXd, MatrixXd> matrices(V, F);
   return matrices;
+
+}
+void addMVP()
+{
 
 }
 void initializeMVP(GLFWwindow* window)
@@ -255,6 +277,8 @@ void addUnitCube()
 {
   ObjectType t = Unit;
   types.push_back(t);
+  RenderType r = Fill;
+  renders.push_back(r);
 
   // Hold onto start index
   int start = 0;
@@ -322,6 +346,10 @@ void addBunny()
 {
   ObjectType t = Bunny;
   types.push_back(t);
+  RenderType r = Fill;
+  renders.push_back(r);
+
+
   // Create data matrices from OFF files
   MatrixXd V_bunny = bunny.first;
   MatrixXd F_bunny = bunny.second;
@@ -357,6 +385,9 @@ void addBumpy()
 {
   ObjectType t = Bumpy;
   types.push_back(t);
+  RenderType r = Fill;
+  renders.push_back(r);
+
   // Create data matrices from OFF files
   MatrixXd V_bumpy = bumpy.first;
   MatrixXd F_bumpy = bumpy.second;
@@ -455,6 +486,78 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     currentY = yworld;
   }
 }
+// Solve for x, given Ax = b
+vector<float> solver(Vector3f &a_coord, Vector3f &b_coord, Vector3f &c_coord, Vector3f &ray_direction, Vector3f &ray_origin)
+{
+  // Construct matrices/vectors to solve for
+  Matrix3f A_;
+  Vector3f b_;
+
+  Vector3f a_minus_b = a_coord - b_coord;
+  Vector3f a_minus_c = a_coord - c_coord;
+  Vector3f a_minus_e = a_coord - ray_origin;
+
+  A_ << a_minus_b[0], a_minus_c[0], ray_direction[0],   a_minus_b[1], a_minus_c[1], ray_direction[1], a_minus_b[2], a_minus_c[2], ray_direction[2];
+  b_ << a_minus_e[0], a_minus_e[1], a_minus_e[2];
+
+  // cout << "Here is the matrix A:\n" << A_ << endl;
+  // cout << "Here is the vector b:\n" << b_ << endl;
+
+  Vector3f sol = A_.colPivHouseholderQr().solve(b_);
+  if(!(A_*sol).isApprox(b_, 0.003)){
+    sol[0] = -1;
+    sol[1] = -1;
+    sol[2] = -1;
+  }
+  vector<float> solutions;
+
+  // cout << "Here is the solution: " << sol << endl;
+  solutions.push_back(sol[0]);
+  solutions.push_back(sol[1]);
+  solutions.push_back(sol[2]);
+  return solutions;
+}
+// Translates indices from F matrix into 3D coordinates from V
+vector<Vector3d> get_triangle_coordinates(MatrixXd &V, MatrixXd &F, unsigned row)
+{
+  Vector3f coordinates;
+  for(unsigned y=0; y< F.cols();y++)
+  {
+    // Get F indices from row
+    coordinates[y] = F(row,y);
+  }
+  // Now have indices to index into V with
+  float a_component = coordinates[0];
+  float b_component = coordinates[1];
+  float c_component = coordinates[2];
+
+  // cout << a_component << endl;
+  // cout << b_component << endl;
+  // cout <<"C index:" << c_component << endl;
+
+  // Get triangle coordinates
+  Vector3d a_coord = RowVector3d(V(a_component,0),V(a_component, 1),V(a_component, 2));
+  Vector3d b_coord = RowVector3d(V(b_component,0),V(b_component, 1),V(b_component, 2));
+  Vector3d c_coord = RowVector3d(V(c_component,0),V(c_component, 1),V(c_component, 2));
+
+  // cout << "a_coord: " <<  a_coord << endl;
+  // cout << "b_coord: " << b_coord << endl;
+  // cout << "c_coord: " << c_coord << endl;
+
+  vector<Vector3d> ret;
+  ret.push_back(a_coord);
+  ret.push_back(b_coord);
+  ret.push_back(c_coord);
+  return ret;
+}
+
+// 1.4 Ray Tracing Triangle Meshes
+bool does_intersect(float t, float u, float v)
+{
+  if(t > 0 && u >= 0 && v >=0 && (u+v) <= 1){ return true; }
+  return false;
+}
+
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
   // Get the position of the mouse in the window
@@ -465,18 +568,67 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
+    Vector3d x_displacement(2.0/width,0,0);
+    Vector3d y_displacement(0,-2.0/height,0);
+
     // Convert screen position to world coordinates
     Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
     Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
     Eigen::Vector4f p_world = view.inverse()*p_canonical;
+
+    Vector3d origin(-1,1,1);
+
+    // Create data matrices from OFF files
+    MatrixXd V_bumpy = bumpy.first;
+    MatrixXd F_bumpy = bumpy.second;
+    MatrixXd V_bunny = bunny.first;
+    MatrixXd F_bunny = bunny.second;
 
     double xworld = p_world[0];
     double yworld = p_world[1];
 
     if(action == GLFW_RELEASE){
       // Check if an object was clicked on and select it
+      Vector3f ray_direction = RowVector3f(0.,0.,-1.);
+      // Construct ray and convert to world coordinates
+      Vector3f ray_screen(xpos, ypos, 0.);
+      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
+      Eigen::Vector4f ray_world = view.inverse()*p_canonical;
 
-    }else if(action == GLFW_PRESS){
+      int start = 0;
+      for(int t = 0; t < types.size(); t++){
+        ObjectType type = types[t];
+
+        // Convert ray from world to object coordinates
+        Matrix4f model_block = model.block(0, (t * 4), 4, 4).inverse();
+        Vector4f pseudo_ray = model_block * ray_world;
+        Vector3f ray_origin(pseudo_ray[0], pseudo_ray[1], pseudo_ray[2]);
+
+        // Perform ray tracing based on object type & position in V
+        switch(type){
+          case Unit:
+            for(int s = start; s < start + 36; s+=3){
+              Vector3f coord1 = V.col(s);
+              Vector3f coord2 = V.col(s + 1);
+              Vector3f coord3 = V.col(s + 2);
+              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
+              float u = solutions[0];
+              float v = solutions[1];
+              float t = solutions[2];
+              if(does_intersect(t, u, v)){
+                cout << "INTERSECT!!" << endl;
+                break;
+              }
+            }
+            break;
+          case Bunny:
+            break;
+          case Bumpy:
+            break;
+        }
+      }
+
+    }else if(action == GLFW_PRESS && selected){
       // If an object is selected, translate it
 
     }
@@ -710,7 +862,7 @@ int main(void)
 
     // Register the mouse callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
@@ -727,6 +879,7 @@ int main(void)
         int start = 0;
         for(int i = 0; i < types.size(); i++){
           ObjectType t = types[i];
+
           switch(t){
             case Unit:
               glDrawArrays(GL_TRIANGLES, start, 36);
