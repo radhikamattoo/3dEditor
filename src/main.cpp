@@ -825,12 +825,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
       selectedPress = false;
     }
 }
-// Vector4f ray_origin_ish = model.block(0, (t * 4), 4, 4).inverse() * ray_world;
-// Vector3f ray_origin(ray_world[0]/ray_world[3], ray_world[1]/ray_world[3], ray_world[2]/ray_world[3]);
-// Convert vertices to world space via its model matrix
-// new_coord1 = model.block(0, (t * 4), 4, 4) * new_coord1;
-// new_coord2 = model.block(0, (t * 4), 4, 4) * new_coord2;
-// new_coord3 = model.block(0, (t * 4), 4, 4) * new_coord3;
+
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     // Update the position of the first vertex if the keys 1,2, or 3 are pressed
@@ -1047,7 +1042,6 @@ int main(void)
     // The vertex shader wants the position of the vertices as an input.
     // The following line connects the VBO we defined above with the position "slot"
     // in the vertex shader
-    cout << "DRAWING" << endl;
     program.bindVertexAttribArray("position",VBO);
     // program.bindVertexAttribArray("color",VBO_C);
 
