@@ -53,7 +53,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -63,7 +63,8 @@ double currentX, currentY, previousX, previousY;
 
 // Is an object selected?
 bool selected = false;
-
+int selected_index = -1;
+bool selectedPress = false;
 // Light position
 Vector3f lightPos(1.2, 1.0, 2.0);
 
@@ -77,6 +78,9 @@ Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
 Eigen::Matrix4f projection(4,4);
 Eigen::Matrix4f view(4,4); // control camera position
+Eigen::MatrixXf translation(4,4); // dynamically resized per object
+Eigen::MatrixXf rotation(4,4); // dynamically resized per object
+Eigen::MatrixXf scaling(4,4); // dynamically resized per object
 Eigen::MatrixXf model(4,4); // dynamically resized per object
 Eigen::MatrixXf MVP(4,4); // dynamically resized per object
 
@@ -101,6 +105,7 @@ float l;
 // top and bottom
 float t;
 float b;
+float aspect;
 
 float focal_length = 2.0;
 
@@ -188,7 +193,7 @@ void initializeMVP(GLFWwindow* window)
   // Get the size of the window
   int width, height;
   glfwGetWindowSize(window, &width, &height);
-  float aspect = width/height;
+  aspect = width/height;
 
   //------------------------------------------
   // PROJECTION MATRIX
@@ -266,12 +271,23 @@ void initializeMVP(GLFWwindow* window)
   // 0.,           1.,           0, 0,
   // -sin(degree), 0, cos(degree), 0,
   // 0,          0,              0, 1;
-
-  model <<
-  1., 0., 0., 0.02,
+  translation <<
+  1., 0., 0., 0.,
   0., 1., 0., 0.,
   0., 0., 1., 0.,
   0., 0., 0., 1.;
+  rotation <<
+  1., 0., 0., 0.,
+  0., 1., 0., 0.,
+  0., 0., 1., 0.,
+  0., 0., 0., 1.;
+  scaling <<
+  1., 0., 0., 0.,
+  0., 1., 0., 0.,
+  0., 0., 1., 0.,
+  0., 0., 0., 1.;
+
+  model = translation * rotation * scaling;
 
   //------------------------------------------
   // MVP MATRIX
@@ -293,11 +309,27 @@ void addUnitCube()
     V.conservativeResize(3, V.cols() + 36);
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
-    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    translation.conservativeResize(4, 4 * numObjects);
+    rotation.conservativeResize(4, 4 * numObjects);
+    scaling.conservativeResize(4, 4 * numObjects);
+
+    translation.block(0, 4 * (numObjects-1), 4, 4) <<
     1., 0., 0., 0.,
     0., 1., 0., 0.,
     0., 0., 1., 0.,
     0., 0., 0., 1.;
+    rotation.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    scaling.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+
+    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }
 
@@ -375,18 +407,37 @@ void addBunny()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
+    // Transformation matrices
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
-    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    translation.conservativeResize(4, 4 * numObjects);
+    rotation.conservativeResize(4, 4 * numObjects);
+    scaling.conservativeResize(4, 4 * numObjects);
+
+    translation.block(0, 4 * (numObjects-1), 4, 4) <<
     1., 0., 0., 0.,
     0., 1., 0., 0.,
     0., 0., 1., 0.,
     0., 0., 0., 1.;
+    rotation.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    scaling.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+
+    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
+
     V.conservativeResize(3, 3000);
+
   }
-  cout << model << endl;
+  // cout << model << endl;
   // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   // Iterate through columns of V and get 3 3D points to build 1 triangle
   // cout << "F_bunny shape: " << F_bunny.rows() << "," << F_bunny.cols() << endl;
@@ -394,6 +445,7 @@ void addBunny()
   {
     for(int j = 0; j < F_bunny.cols(); j++)
     {
+
       vector<float> vertices;
       int idx = F_bunny(i,j);
       // take the row from idx and push the 3 points for 1 vertex
@@ -403,6 +455,7 @@ void addBunny()
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
     }
   }
+
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
@@ -426,18 +479,34 @@ void addBumpy()
     V.conservativeResize(3, V.cols() + 3000);
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
-    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    translation.conservativeResize(4, 4 * numObjects);
+    rotation.conservativeResize(4, 4 * numObjects);
+    scaling.conservativeResize(4, 4 * numObjects);
+
+    translation.block(0, 4 * (numObjects-1), 4, 4) <<
     1., 0., 0., 0.,
     0., 1., 0., 0.,
     0., 0., 1., 0.,
     0., 0., 0., 1.;
+    rotation.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    scaling.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+
+    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
   }
-  cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
+  // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   // Iterate through columns of V and get 3 3D points to build 1 triangle
-  cout << "F_bumpy shape: " << F_bumpy.rows() << "," << F_bumpy.cols() << endl;
+  // cout << "F_bumpy shape: " << F_bumpy.rows() << "," << F_bumpy.cols() << endl;
   for(int i = 0; i < F_bumpy.rows(); i++)
   {
     for(int j = 0; j < F_bumpy.cols(); j++)
@@ -498,6 +567,37 @@ void colorCube()
   // VBO_C.update(colors);
 
 }
+// Translates triangle based on mouse movement
+void translateTriangle()
+{
+  // Compare previousX and currentX, etc. and figure out translation
+  float x_difference;
+  float y_difference;
+  // cout << "Previous (x,y): " << previousX << "," << previousY << endl;
+  // cout << "Current (x,y): " << currentX << "," << currentY << endl;
+
+  // cout << "Previous positions: " << previousX << " , " << previousY << endl;
+  // cout << "Current positions: " << currentX << " , " << currentY << endl;
+  if(currentX > previousX) // mouse moved right
+  {
+    x_difference = currentX - previousX;
+    translation(0,selected_index + 3) += x_difference;
+  }else{ // mouse moved left
+    x_difference = previousX - currentX;
+    translation(0, selected_index + 3) -= x_difference;
+  }
+  if(currentY > previousY) // mouse moved up
+  {
+    y_difference = currentY - previousY;
+    translation(1,selected_index + 3) += y_difference;
+  }else{ //mouse moved down
+    y_difference = previousY - currentY;
+    translation(1,selected_index + 3) -= y_difference;
+  }
+
+  model.block(0, selected_index, 4,4) = translation.block(0, selected_index, 4, 4) * rotation.block(0, selected_index, 4, 4) * scaling.block(0, selected_index, 4, 4);
+  MVP.block(0, selected_index, 4, 4) = projection * view * model.block(0, selected_index, 4,4);
+}
 void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
   // Get the size of the window
@@ -507,7 +607,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
   // Convert screen position to world coordinates
   Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
   Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
-  Eigen::Vector4f p_world = view.inverse()*p_canonical;
+  Eigen::Vector4f p_world = view.inverse() * projection.inverse() * p_canonical;
 
   double xworld = p_world[0];
   double yworld = p_world[1];
@@ -523,6 +623,9 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 
     currentX = xworld;
     currentY = yworld;
+  }
+  if(selectedPress){
+    translateTriangle();
   }
 }
 // Solve for x, given Ax = b
@@ -613,44 +716,62 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     MatrixXd V_bunny = bunny.first;
     MatrixXd F_bunny = bunny.second;
 
+    double aspect = double(width)/double(height);
+    // cout << "Width: " << width << endl; //640
+    // cout << "Height: " << height << endl; //480
 
-    if(action == GLFW_RELEASE){
+    if(action == GLFW_PRESS){
       // Check if an object was clicked on and select it
-      Eigen::Vector4f ray_screen(xpos,height-1-ypos,0,1);
-      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
+      // TODO: ORTHOGRAPHIC PROJECTION NOT WORKING
+
+      // Construct ray and convert to world coordinates
       Vector3f ray_direction(0., 0., -1.);
 
-      int start = 0;
-      bool intersects = false;
-      for(int t = 0; t < types.size(); t++){
-        ObjectType type = types[t];
-        // Convert ray from canonical to object coordinates
-        ray_screen = MVP.block(0, (t * 4), 4, 4).inverse() * ray_canonical;
-        Vector3f ray_origin(ray_canonical[0]/ray_canonical[3], ray_canonical[1]/ray_canonical[3], ray_canonical[2]/ray_canonical[3]);
-        cout << ray_origin << endl;
+      Eigen::Vector3f ray_screen(xpos,height-1-ypos,0); //screen coordinates
+      // cout << "Ray screen: \n" << ray_screen << endl;
 
+      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1); //canonical view volume
+      // cout << "Ray canonical: \n" << ray_canonical << endl;
+
+      // projection is either the orthographic or perpsective projection matrix
+      Vector4f ray_projection = projection.inverse() * ray_canonical; //camera space
+      // cout << "Ray projection: \n" << ray_projection << endl;
+
+      Vector4f ray_world = view.inverse() * ray_projection; //world space
+      // cout << "Ray world: \n" << ray_world << endl;
+
+      Vector3f ray_origin(ray_world[0], ray_world[1], ray_world[2]);
+      // cout << "Ray origin: \n" << ray_origin << endl;
+
+      // selected = false;
+      int start = 0;
+      for(int t_idx = 0; t_idx < types.size(); t_idx++){
+        ObjectType type = types[t_idx];
         switch(type){
           case Unit:
             for(int s = start; s < start + 36; s+=3){
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
-              if(ortho){
-                coord1 *= ORTHO_FACTOR;
-                coord2 *= ORTHO_FACTOR;
-                coord3 *= ORTHO_FACTOR;
-              }
+
+              Vector4f new_coord1(coord1[0], coord1[1], coord1[2], 1.);
+              Vector4f new_coord2(coord2[0], coord2[1], coord2[2], 1.);
+              Vector4f new_coord3(coord3[0], coord3[1], coord3[2], 1.);
+
+              new_coord1 = model.block(0, (t * 4), 4, 4) * new_coord1;
+              new_coord2 = model.block(0, (t * 4), 4, 4) * new_coord2;
+              new_coord3 = model.block(0, (t * 4), 4, 4) * new_coord3;
+
+              coord1 << new_coord1[0], new_coord1[1], new_coord1[2];
+              coord2 << new_coord2[0], new_coord2[1], new_coord2[2];
+              coord3 << new_coord3[0], new_coord3[1], new_coord3[2];
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
               float t = solutions[2];
               if(does_intersect(t, u, v)){
-                cout << "1 coord: \n" << coord1 << endl;
-                cout << "2 coord: \n" << coord2 << endl;
-                cout << "3 coord: \n" << coord3 << endl;
-                cout << "u, v, t: \n" << u << "," << v << ", " << t << endl;
-
-                intersects = true;
+                selectedPress = true;
+                selected_index = t_idx * 4;
                 cout << "UNIT CUBE Intersect!" << endl;
                 break;
               }
@@ -662,17 +783,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
-              if(ortho){
-                coord1 *= ORTHO_FACTOR;
-                coord2 *= ORTHO_FACTOR;
-                coord3 *= ORTHO_FACTOR;
-              }
+
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
               float t = solutions[2];
               if(does_intersect(t, u, v)){
-                intersects = true;
+                selectedPress = true;
+                selected_index = t_idx * 4;
                 cout << "BUNNY Intersect!" << endl;
                 break;
               }
@@ -684,17 +802,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
-              if(ortho){
-                coord1 *= ORTHO_FACTOR;
-                coord2 *= ORTHO_FACTOR;
-                coord3 *= ORTHO_FACTOR;
-              }
+
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
               float t = solutions[2];
               if(does_intersect(t, u, v)){
-                intersects = true;
+                selectedPress = true;
+                selected_index = t_idx * 4;
                 cout << "BUMPY CUBE Intersect!" << endl;
                 break;
               }
@@ -702,15 +817,20 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             start += 3000;
             break;
         }
-        if(intersects) break;
+        if(selected) break;
       } // ObjectType for loop
 
-    }else if(action == GLFW_PRESS && selected){
-      // If an object is selected, translate it
-
+    }else if(action == GLFW_RELEASE && selectedPress){
+      selected = true;
+      selectedPress = false;
     }
 }
-
+// Vector4f ray_origin_ish = model.block(0, (t * 4), 4, 4).inverse() * ray_world;
+// Vector3f ray_origin(ray_world[0]/ray_world[3], ray_world[1]/ray_world[3], ray_world[2]/ray_world[3]);
+// Convert vertices to world space via its model matrix
+// new_coord1 = model.block(0, (t * 4), 4, 4) * new_coord1;
+// new_coord2 = model.block(0, (t * 4), 4, 4) * new_coord2;
+// new_coord3 = model.block(0, (t * 4), 4, 4) * new_coord3;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     // Update the position of the first vertex if the keys 1,2, or 3 are pressed
@@ -937,8 +1057,12 @@ int main(void)
     // Register the keyboard callback
     glfwSetKeyCallback(window, key_callback);
 
-    // Register the mouse callback
+    // Register the mouse click callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+    // Register the mouse movement callback
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
+
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
@@ -950,7 +1074,6 @@ int main(void)
       // glDepthFunc(GL_LESS);
       glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-      glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.data());
 
       if(numObjects > 0){
         int start = 0;
@@ -959,14 +1082,17 @@ int main(void)
 
           switch(t){
             case Unit:
+              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 36);
               start += 36;
               break;
             case Bunny:
+              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 3000);
               start += 3000;
               break;
             case Bumpy:
+              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 3000);
               start += 3000;
               break;
