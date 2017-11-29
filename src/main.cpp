@@ -53,7 +53,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -67,6 +67,8 @@ bool selected = false;
 // Light position
 Vector3f lightPos(1.2, 1.0, 2.0);
 
+// Amount to divide/multiply vertices by in orthographic projection
+int UNIT_FACTOR = 70;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
@@ -198,11 +200,18 @@ void initializeMVP(GLFWwindow* window)
   l = -r;
 
   // Apply projection matrix to corner points
+  // orthographic <<
+  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
+  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
+  // 0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
+  // 0., 0., 0.,   1.;
+
   orthographic <<
   2/(r - l), 0., 0., -((r+l)/(r-l)),
   0., 2/(t - b), 0., -((t+b)/(t-b)),
-  0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
+  0., 0., 2/(f-n), -(n+f)/(f-n),
   0., 0., 0.,   1.;
+
 
   // perspective maps a frustrum to a unit cube
   // take  vertex from each end of the frustrum and map them to the unit cube
@@ -259,8 +268,8 @@ void initializeMVP(GLFWwindow* window)
   // 0,          0,              0, 1;
 
   model <<
-  1., 0., 0., 0.5,
-  0., 1., 0., 0.2,
+  1., 0., 0., 0.,
+  0., 1., 0., 0.,
   0., 0., 1., 0.,
   0., 0., 0., 1.;
 
@@ -344,7 +353,7 @@ void addUnitCube()
 
 
   if(ortho){
-    V.block(0, start, 3, 36) /= 70;
+    V.block(0, start, 3, 36) /= UNIT_FACTOR;
   }
   VBO.update(V);
 
@@ -600,7 +609,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
     if(action == GLFW_RELEASE){
       // Check if an object was clicked on and select it
-      // Vector4f ray_screen((xpos - (width/2))/(width/2), ((height/2) - ypos)/(height/2), -1.0, 1.0);
+
       Eigen::Vector4f ray_screen(xpos,height-1-ypos,0,1);
       Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
       Vector3f ray_direction(0., 0., -1.);
@@ -611,19 +620,34 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         ObjectType type = types[t];
         // Convert ray from world to object coordinates
         ray_screen = MVP.block(0, (t * 4), 4, 4).inverse() * ray_canonical;
+        cout << "Model matrix: \n" << model.block(0, (t * 4), 4, 4) << endl;
+        cout << "View matrix: \n" << view << endl;
+        cout << "Projection matrix: \n" << projection << endl;
         Vector3f ray_origin(ray_canonical[0]/ray_canonical[3], ray_canonical[1]/ray_canonical[3], ray_canonical[2]/ray_canonical[3]);
         cout << ray_origin << endl;
+
         switch(type){
           case Unit:
             for(int s = start; s < start + 36; s+=3){
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
+              if(ortho){
+                coord1 *= UNIT_FACTOR;
+                coord2 *= UNIT_FACTOR;
+                coord3 *= UNIT_FACTOR;
+              }
+
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
               float t = solutions[2];
               if(does_intersect(t, u, v)){
+                cout << "1 coord: \n" << coord1 << endl;
+                cout << "2 coord: \n" << coord2 << endl;
+                cout << "3 coord: \n" << coord3 << endl;
+                cout << "u, v, t: \n" << u << "," << v << ", " << t << endl;
+
                 intersects = true;
                 cout << "UNIT CUBE Intersect!" << endl;
                 break;
