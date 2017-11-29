@@ -75,8 +75,8 @@ Eigen::Matrix4f orthographic(4,4);
 Eigen::Matrix4f perspective(4,4);
 Eigen::Matrix4f projection(4,4);
 Eigen::Matrix4f view(4,4); // control camera position
-Eigen::Matrix4f model(4,4); // dynamically resized per object
-Eigen::Matrix4f MVP(4,4); // dynamically resized per object
+Eigen::MatrixXf model(4,4); // dynamically resized per object
+Eigen::MatrixXf MVP(4,4); // dynamically resized per object
 
 //----------------------------------
 // OFF DATA
@@ -100,6 +100,7 @@ float l;
 float t;
 float b;
 
+float focal_length = 2.0;
 
 vector<float> split_line(string line, bool F)
 {
@@ -151,9 +152,9 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 
     for(int j = 0; j < 3; j++){
       if(enlarge){
-        V(v,j) = (line_data[j]*8);
+        V(v,j) = (line_data[j]*7);
       }else{
-        V(v,j) = (line_data[j]/8 );
+        V(v,j) = (line_data[j]/8);
       }
       if(!enlarge){ //cube
         // V(v,0) += 0.1;
@@ -179,10 +180,7 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   return matrices;
 
 }
-void addMVP()
-{
 
-}
 void initializeMVP(GLFWwindow* window)
 {
   // Get the size of the window
@@ -223,9 +221,9 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   // VIEW/CAMERA MATRIX
   //------------------------------------------
-  Vector3f e(0.0, 0.0, 2.0); //camera position/ eye position
+  Vector3f e(0.0, 0.0, focal_length); //camera position/ eye position
   Vector3f g(0.0, 0.0, 0.0); //target point, where we want to look
-  Vector3f t(0.0, 0.5, 0.0); //up vector
+  Vector3f t(0.0, 1.0, 0.0); //up vector
 
   Vector3f w = (e- g).normalized();
   Vector3f u = (t.cross(w).normalized());
@@ -261,8 +259,8 @@ void initializeMVP(GLFWwindow* window)
   // 0,          0,              0, 1;
 
   model <<
-  1., 0., 0., 0.,
-  0., 1., 0., 0.,
+  1., 0., 0., 0.5,
+  0., 1., 0., 0.2,
   0., 0., 1., 0.,
   0., 0., 0., 1.;
 
@@ -270,7 +268,6 @@ void initializeMVP(GLFWwindow* window)
   // MVP MATRIX
   //------------------------------------------
   MVP = projection * view * model;
-  // MVP = model;
 
 }
 void addUnitCube()
@@ -282,11 +279,21 @@ void addUnitCube()
 
   // Hold onto start index
   int start = 0;
-  if(numObjects > 0){
+  if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 36);
-    cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
+    model.conservativeResize(4, 4 * numObjects);
+    MVP.conservativeResize(4, 4 * numObjects);
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }
+
+  // Update sizes of all matrices
+
   // BOTTOM
   V.col(start) << 0.5, -0.5, 0.5;
   V.col(start + 1) <<   0.5, -0.5, -0.5;
@@ -356,9 +363,17 @@ void addBunny()
 
   // Hold onto start index
   int start = 0;
-  if(numObjects > 0){
+  if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
+    model.conservativeResize(4, 4 * numObjects);
+    MVP.conservativeResize(4, 4 * numObjects);
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
   }
@@ -393,9 +408,17 @@ void addBumpy()
   MatrixXd F_bumpy = bumpy.second;
   // Hold onto start index
   int start = 0;
-  if(numObjects > 0){
+  if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
+    model.conservativeResize(4, 4 * numObjects);
+    MVP.conservativeResize(4, 4 * numObjects);
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+    1., 0., 0., 0.,
+    0., 1., 0., 0.,
+    0., 0., 1., 0.,
+    0., 0., 0., 1.;
+    MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
   }
@@ -568,51 +591,28 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
-    Vector3d x_displacement(2.0/width,0,0);
-    Vector3d y_displacement(0,-2.0/height,0);
-
-    // Convert screen position to world coordinates
-    Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
-    Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
-    Eigen::Vector4f p_world = view.inverse()*p_canonical;
-
-    Vector3d origin(-1,1,1);
-
     // Create data matrices from OFF files
     MatrixXd V_bumpy = bumpy.first;
     MatrixXd F_bumpy = bumpy.second;
     MatrixXd V_bunny = bunny.first;
     MatrixXd F_bunny = bunny.second;
 
-    double xworld = p_world[0];
-    double yworld = p_world[1];
 
     if(action == GLFW_RELEASE){
       // Check if an object was clicked on and select it
-      Vector3f ray_direction = RowVector3f(0.,0.,-1.);
-
-      // Construct ray and convert to world coordinates
-      Vector3f ray_screen(xpos, ypos, 0.);
-      Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
-      Vector4f ray_projection = projection.inverse() * ray_canonical;
-      Vector4f ray_world = view.inverse()*ray_projection;
+      // Vector4f ray_screen((xpos - (width/2))/(width/2), ((height/2) - ypos)/(height/2), -1.0, 1.0);
+      Eigen::Vector4f ray_screen(xpos,height-1-ypos,0,1);
+      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
+      Vector3f ray_direction(0., 0., -1.);
 
       int start = 0;
+      bool intersects = false;
       for(int t = 0; t < types.size(); t++){
         ObjectType type = types[t];
-
         // Convert ray from world to object coordinates
-        Matrix4f model_block = model.block(0, (t * 4), 4, 4).inverse();
-        Vector4f pseudo_ray = model_block * ray_world;
-        Vector3f ray_origin;
-
-        // Cut off the homogenous coordinate for intersection test
-        if(ortho){
-          ray_origin << pseudo_ray[0], pseudo_ray[1], pseudo_ray[2];
-        }else{
-          ray_origin << pseudo_ray[0]/pseudo_ray[3], pseudo_ray[1]/pseudo_ray[3], pseudo_ray[2]/pseudo_ray[3];
-        }
-        // Perform ray tracing based on object type & position in V
+        ray_screen = MVP.block(0, (t * 4), 4, 4).inverse() * ray_canonical;
+        Vector3f ray_origin(ray_canonical[0]/ray_canonical[3], ray_canonical[1]/ray_canonical[3], ray_canonical[2]/ray_canonical[3]);
+        cout << ray_origin << endl;
         switch(type){
           case Unit:
             for(int s = start; s < start + 36; s+=3){
@@ -624,17 +624,50 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               float v = solutions[1];
               float t = solutions[2];
               if(does_intersect(t, u, v)){
-                cout << "INTERSECT!!" << endl;
+                intersects = true;
+                cout << "UNIT CUBE Intersect!" << endl;
                 break;
               }
             }
+            start += 36;
             break;
           case Bunny:
+            for(int s = start; s < start + 3000; s+=3){
+              Vector3f coord1 = V.col(s);
+              Vector3f coord2 = V.col(s + 1);
+              Vector3f coord3 = V.col(s + 2);
+              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
+              float u = solutions[0];
+              float v = solutions[1];
+              float t = solutions[2];
+              if(does_intersect(t, u, v)){
+                intersects = true;
+                cout << "BUNNY Intersect!" << endl;
+                break;
+              }
+            }
+            start += 3000;
             break;
           case Bumpy:
+            for(int s = start; s < start + 3000; s+=3){
+              Vector3f coord1 = V.col(s);
+              Vector3f coord2 = V.col(s + 1);
+              Vector3f coord3 = V.col(s + 2);
+              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
+              float u = solutions[0];
+              float v = solutions[1];
+              float t = solutions[2];
+              if(does_intersect(t, u, v)){
+                intersects = true;
+                cout << "BUMPY CUBE Intersect!" << endl;
+                break;
+              }
+            }
+            start += 3000;
             break;
         }
-      }
+        if(intersects) break;
+      } // ObjectType for loop
 
     }else if(action == GLFW_PRESS && selected){
       // If an object is selected, translate it
@@ -650,18 +683,18 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
       {
         case  GLFW_KEY_1:
             cout << "Adding unit cube to the origin" << endl;
-            addUnitCube();
             numObjects++;
+            addUnitCube();
             break;
         case GLFW_KEY_2:
             cout << "Adding bumpy cube to the origin" << endl;
-            addBumpy();
             numObjects++;
+            addBumpy();
             break;
         case  GLFW_KEY_3:
             cout << "Adding bunny to the origin" << endl;
-            addBunny();
             numObjects++;
+            addBunny();
             break;
         case  GLFW_KEY_7:
             cout << "Wireframe" << endl;
@@ -914,14 +947,6 @@ int main(void)
     }
     // Deallocate opengl memory
     program.free();
-    // for(int i = 0; i < VAOS.size(); i++){
-    //   VertexArrayObject VAO = VAOS[i];
-    //   unsigned int EBO = EBOS[i];
-    //   unsigned int  VBO = VBOS[i];
-    //   glDeleteBuffers(1, &VBO);
-    //   glDeleteBuffers(1, &EBO);
-    //   VAO.free();
-    // }
 
     // Deallocate glfw internals
     glfwTerminate();
