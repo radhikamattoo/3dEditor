@@ -68,7 +68,7 @@ bool selected = false;
 Vector3f lightPos(1.2, 1.0, 2.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
-int UNIT_FACTOR = 70;
+int ORTHO_FACTOR = 70;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
@@ -268,7 +268,7 @@ void initializeMVP(GLFWwindow* window)
   // 0,          0,              0, 1;
 
   model <<
-  1., 0., 0., 0.,
+  1., 0., 0., 0.02,
   0., 1., 0., 0.,
   0., 0., 1., 0.,
   0., 0., 0., 1.;
@@ -353,7 +353,7 @@ void addUnitCube()
 
 
   if(ortho){
-    V.block(0, start, 3, 36) /= UNIT_FACTOR;
+    V.block(0, start, 3, 36) /= ORTHO_FACTOR;
   }
   VBO.update(V);
 
@@ -386,9 +386,10 @@ void addBunny()
   }else{
     V.conservativeResize(3, 3000);
   }
-  cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
+  cout << model << endl;
+  // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   // Iterate through columns of V and get 3 3D points to build 1 triangle
-  cout << "F_bunny shape: " << F_bunny.rows() << "," << F_bunny.cols() << endl;
+  // cout << "F_bunny shape: " << F_bunny.rows() << "," << F_bunny.cols() << endl;
   for(int i = 0; i < F_bunny.rows(); i++)
   {
     for(int j = 0; j < F_bunny.cols(); j++)
@@ -401,6 +402,9 @@ void addBunny()
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
     }
+  }
+  if(ortho){
+    V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
   VBO.update(V);
 
@@ -446,6 +450,9 @@ void addBumpy()
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
     }
+  }
+  if(ortho){
+    V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
   VBO.update(V);
 }
@@ -609,7 +616,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
     if(action == GLFW_RELEASE){
       // Check if an object was clicked on and select it
-
       Eigen::Vector4f ray_screen(xpos,height-1-ypos,0,1);
       Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1);
       Vector3f ray_direction(0., 0., -1.);
@@ -618,11 +624,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
       bool intersects = false;
       for(int t = 0; t < types.size(); t++){
         ObjectType type = types[t];
-        // Convert ray from world to object coordinates
+        // Convert ray from canonical to object coordinates
         ray_screen = MVP.block(0, (t * 4), 4, 4).inverse() * ray_canonical;
-        cout << "Model matrix: \n" << model.block(0, (t * 4), 4, 4) << endl;
-        cout << "View matrix: \n" << view << endl;
-        cout << "Projection matrix: \n" << projection << endl;
         Vector3f ray_origin(ray_canonical[0]/ray_canonical[3], ray_canonical[1]/ray_canonical[3], ray_canonical[2]/ray_canonical[3]);
         cout << ray_origin << endl;
 
@@ -633,11 +636,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
               if(ortho){
-                coord1 *= UNIT_FACTOR;
-                coord2 *= UNIT_FACTOR;
-                coord3 *= UNIT_FACTOR;
+                coord1 *= ORTHO_FACTOR;
+                coord2 *= ORTHO_FACTOR;
+                coord3 *= ORTHO_FACTOR;
               }
-
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
@@ -660,6 +662,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
+              if(ortho){
+                coord1 *= ORTHO_FACTOR;
+                coord2 *= ORTHO_FACTOR;
+                coord3 *= ORTHO_FACTOR;
+              }
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
@@ -677,6 +684,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
               Vector3f coord3 = V.col(s + 2);
+              if(ortho){
+                coord1 *= ORTHO_FACTOR;
+                coord2 *= ORTHO_FACTOR;
+                coord3 *= ORTHO_FACTOR;
+              }
               vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
               float u = solutions[0];
               float v = solutions[1];
