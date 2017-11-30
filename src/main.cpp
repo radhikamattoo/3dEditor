@@ -43,8 +43,9 @@ MatrixXf C(3,36);
 // Normals
 VertexBufferObject VBO_N_F;
 VertexBufferObject VBO_N_V;
-MatrixXf N_faces(3,12); //per triangle normal
+MatrixXf N_faces(3,36); //per triangle normal
 MatrixXf N_vertices(3,36); //per vertex normal
+vector<int> rendering;
 
 // Create an object type
 enum ObjectType { Unit, Bunny, Bumpy };
@@ -204,19 +205,18 @@ void addNormals(ObjectType type, int start)
 {
   switch(type){
     case Unit:
-
-      int idx = 0;
-      // Face normals
       for(int i = start; i < start + 36; i+=3)
       {
         Vector3f edge1 = V.col(i + 1) - V.col(i);
         Vector3f edge2 = V.col(i + 2) - V.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
-        N_faces.col(idx) << normal;
+        N_faces.col(i) << normal;
+        N_faces.col(i + 1) << normal;
+        N_faces.col(i + 1) << normal;
         N_vertices.col(i) += normal;
-        N_vertices.col(i+1) += normal;
-        N_vertices.col(i+2) += normal;
-        idx++;
+        N_vertices.col(i + 1) += normal;
+        N_vertices.col(i + 2) += normal;
+        // idx++;
       }
       for(int i = start; i < start + 36; i++)
       {
@@ -224,7 +224,6 @@ void addNormals(ObjectType type, int start)
       }
       VBO_N_V.update(N_vertices);
       VBO_N_F.update(N_faces);
-
       break;
     // case Bunny:
     //   cout << "fuck u" << endl;
@@ -331,6 +330,9 @@ void initialize(GLFWwindow* window)
   Vector3f w = (eye - look_at).normalized();
   Vector3f u = (up_vec.cross(w).normalized());
   Vector3f v = w.cross(u);
+  cout << "W: \n" << w << endl;
+  cout << "U: \n" << u << endl;
+  cout << "V: \n" << v << endl;
 
   Matrix4f look;
   look <<
@@ -346,6 +348,8 @@ void initialize(GLFWwindow* window)
   0.0, 0.0, 0.5, -eye[2],
   0.0, 0.0, 0.0, 0.5;
   view = look * at;
+
+  cout << "View: \n" << view << endl;
 
   //------------------------------------------
   // MODEL MATRIX
@@ -422,7 +426,6 @@ void initialize(GLFWwindow* window)
   ObjectType type = Unit;
   addNormals(type, 0);
 
-
 }
 void addUnitCube()
 {
@@ -436,7 +439,7 @@ void addUnitCube()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 36);
-    N_faces.conservativeResize(3, V.cols() + 12);
+    N_faces.conservativeResize(3, V.cols() + 36);
     N_vertices.conservativeResize(3, V.cols() + 36);
     C.conservativeResize(3, V.cols() + 36);
     model.conservativeResize(4, 4 * numObjects);
@@ -1106,7 +1109,7 @@ int main(void)
     VAO.init();
     VAO.bind();
 
-
+    // cout << "INIT" << endl;
     // Initialize everything needed
     initialize(window);
 
@@ -1135,6 +1138,8 @@ int main(void)
                     "uniform mat4 model;"
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
+                    // "uniform bool flat;"
+
 
                     "out vec3 Normal;"
                     "out vec3 FragPos;"
@@ -1143,7 +1148,11 @@ int main(void)
                     "{"
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
-                    "    Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    // "    if(flat){"
+                    "       Normal = mat3(transpose(inverse(model))) * face_normal;"
+                    // "    }else{"
+                    // "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    // "    }"
                     "    objectColor = color;"
                     "}";
     const GLchar* fragment_shader =
@@ -1154,6 +1163,7 @@ int main(void)
                     "out vec4 outColor;"
                     "uniform vec3 lightPos;"
                     "uniform vec3 viewPos;"
+                    // "uniform bool flat;"
                     "void main()"
                     "{"
                     "    vec3 lightColor = vec3(0.0, 1.0, 0.0);"
@@ -1166,14 +1176,15 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
+                  "      vec3 result = (ambient + diffuse) * objectColor;"
 
-                        // Specular
-                  "      float specularStrength = 0.5f;"
-                  "      vec3 viewDir = normalize(viewPos - FragPos);"
-                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
-                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
-                  "      vec3 specular = specularStrength * spec * lightColor;  "
-                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
+                  //       // Specular
+                  // "      float specularStrength = 0.5f;"
+                  // "      vec3 viewDir = normalize(viewPos - FragPos);"
+                  // "      vec3 reflectDir = reflect(-lightDir, norm);  "
+                  // "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  // "      vec3 specular = specularStrength * spec * lightColor;  "
+                  // "      vec3 result = (ambient + diffuse + specular) * objectColor;"
                   "      outColor = vec4(result, 1.0);"
                     "}";
 
@@ -1193,6 +1204,7 @@ int main(void)
 
     glUniform3f(program.uniform("lightPos"), 1.0, 1.0, 2.0);
     glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
+    glUniform1i(program.uniform("flat"), 1);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -1214,8 +1226,8 @@ int main(void)
       // Bind your program
       program.bind();
       // Clear the framebuffer
-      // glEnable(GL_DEPTH_TEST);
-      // glDepthFunc(GL_LESS);
+      glEnable(GL_DEPTH_TEST);
+      glDepthFunc(GL_LESS);
       glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
@@ -1229,6 +1241,9 @@ int main(void)
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
               glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
               glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
+              glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+              glDrawArrays(GL_TRIANGLES, start, 36);
+              glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
               glDrawArrays(GL_TRIANGLES, start, 36);
               start += 36;
               break;
