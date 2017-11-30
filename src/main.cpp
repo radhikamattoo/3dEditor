@@ -418,7 +418,7 @@ void initialize(GLFWwindow* window)
   // COLORS
   //------------------------------------------
   C <<
-  1.0,  1.0,  1.0,
+  0.0,  1.0,  0.0,
   1.0,  1.0,  1.0,
   1.0,  1.0,  1.0,
   1.0,  1.0,  1.0,
@@ -558,7 +558,7 @@ void addUnitCube()
   // initialize C & N
   for(int i = start; i < start + 36; i++){
     N_vertices.col(i) << 0.0, 0.0, 0.0;
-    C.col(i) << 1.0, 1.0, 1.0;
+    C.col(i) << 1.0, 0.0, 0.0;
   }
   // Calculate normals for triangle vertices & faces
   addNormals(t, start);
@@ -636,13 +636,13 @@ void addBunny()
         vertices.push_back(V_bunny(idx,x));
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-      C.col(start + (i*3) + j) << 0.0, 1.0, 0.0; // green
+      C.col(start + (i*3) + j) << 0.0, 0.0, 1.0; // green
       N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
       N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
 
     }
   }
-  cout << "C is now: \n" << C.block(0, start, 3, 6) << endl;
+  cout << "C is now: \n" << C.block(0, 0, 3, 6) << endl;
   addNormals(t, start);
 
   if(ortho){
@@ -1207,9 +1207,9 @@ int main(void)
                     // "uniform bool flat;"
                     "void main()"
                     "{"
-                    "    vec3 lightColor = vec3(0.0, 1.0, 0.0);"
+                    "    vec3 lightColor = vec3(1.0, 1.0, 1.0);"
                         // Ambient
-                  "      float ambientStrength = 0.01f;"
+                  "      float ambientStrength = 0.001f;"
                   "      vec3 ambient = ambientStrength * lightColor;"
 
                         // Diffuse
