@@ -41,8 +41,10 @@ VertexBufferObject VBO_C;
 MatrixXf C(3,36);
 
 // Normals
-VertexBufferObject VBO_N;
-MatrixXf N(3,36);
+VertexBufferObject VBO_N_F;
+VertexBufferObject VBO_N_V;
+MatrixXf N_faces(3,12); //per triangle normal
+MatrixXf N_vertices(3,36); //per vertex normal
 
 // Create an object type
 enum ObjectType { Unit, Bunny, Bumpy };
@@ -65,11 +67,13 @@ double currentX, currentY, previousX, previousY;
 bool selected = false;
 int selected_index = -1;
 bool selectedPress = false;
+
 // Light position
 Vector3f lightPos(1.2, 1.0, 2.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
+
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
@@ -91,6 +95,14 @@ pair<MatrixXd, MatrixXd> bunny;
 pair<MatrixXd, MatrixXd> bumpy;
 
 //----------------------------------
+// VIEW MATRIX PARAMETERS
+//----------------------------------
+float focal_length = 2.0;
+Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
+Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
+Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
+
+//----------------------------------
 // PERSPECTIVE PROJECTION PARAMETERS
 //----------------------------------
 // FOV angle is hardcoded to 60 degrees
@@ -107,7 +119,6 @@ float t;
 float b;
 float aspect;
 
-float focal_length = 2.0;
 
 vector<float> split_line(string line, bool F)
 {
@@ -188,16 +199,98 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
 
 }
 
-void initializeMVP(GLFWwindow* window)
+// Iterates through the N buffer and adds in the normals
+void addNormals(ObjectType type, int start)
 {
+  switch(type){
+    case Unit:
+
+      int idx = 0;
+      // Face normals
+      for(int i = start; i < start + 36; i+=3)
+      {
+        Vector3f edge1 = V.col(i + 1) - V.col(i);
+        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f normal = (edge1.cross(edge2)).normalized();
+        N_faces.col(idx) << normal;
+        N_vertices.col(i) += normal;
+        N_vertices.col(i+1) += normal;
+        N_vertices.col(i+2) += normal;
+        idx++;
+      }
+      for(int i = start; i < start + 36; i++)
+      {
+        N_vertices.col(i) = N_vertices.col(i).normalized();
+      }
+      VBO_N_V.update(N_vertices);
+      VBO_N_F.update(N_faces);
+
+      break;
+    // case Bunny:
+    //   cout << "fuck u" << endl;
+    //   break;
+    // case Bumpy:
+    //   cout << "fuck u" << endl;
+    //   break;
+  }
+}
+void initialize(GLFWwindow* window)
+{
+  VBO.init();
+  VBO_C.init();
+  VBO_N_V.init();
+  VBO_N_F.init();
+
+  //------------------------------------------
+  // VERTEX DATA
+  //------------------------------------------
+   V <<
+  -0.0, -0.0,  0.0,
+   0.0, -0.0,  0.0,
+   0.0, -0.0, -0.0, //bottom triangle
+  -0.0, -0.0, -0.0,
+  -0.0, -0.0,  0.0,
+   0.0, -0.0, -0.0, //upper triangle
+  -0.0, -0.0, -0.0,
+   0.0, -0.0, -0.0,
+   0.0,  0.0, -0.0, //bottom triangle
+  -0.0,  0.0, -0.0,
+  -0.0, -0.0, -0.0,
+   0.0,  0.0, -0.0, //upper triangle
+   -0.0, -0.0,  0.0,
+   -0.0,  0.0,  0.0,
+   -0.0, -0.0, -0.0, //bottom triangle
+   -0.0,  0.0,  0.0,
+   -0.0, -0.0, -0.0,
+   -0.0,  0.0, -0.0, //upper triangle
+   0.0, -0.0,  0.0,
+   0.0,  0.0,  0.0,
+   0.0, -0.0, -0.0, //bottom triangle
+   0.0, -0.0, -0.0,
+   0.0,  0.0,  0.0,
+   0.0,  0.0, -0.0, //upper triangle
+   0.0,  0.0,  0.0,
+   0.0,  0.0, -0.0,
+   -0.0, 0.0, 0.0, //bottom triangle
+   -0.0, 0.0, -0.0,
+   0.0,  0.0, -0.0,
+   -0.0, 0.0, 0.0, //upper triangle
+   -0.0, -0.0,  0.0,
+    0.0, -0.0,  0.0,
+    0.0,  0.0,  0.0, //bottom triangle
+   -0.0, -0.0,  0.0,
+    0.0,  0.0,  0.0,
+   -0.0,  0.0,  0.0; //upper triangle
+   VBO.update(V);
+
+  //------------------------------------------
+  // PROJECTION MATRIX
+  //------------------------------------------
   // Get the size of the window
   int width, height;
   glfwGetWindowSize(window, &width, &height);
   aspect = width/height;
 
-  //------------------------------------------
-  // PROJECTION MATRIX
-  //------------------------------------------
   t = tan(theta/2) * abs(n);
   b = -t;
 
@@ -205,17 +298,17 @@ void initializeMVP(GLFWwindow* window)
   l = -r;
 
   // Apply projection matrix to corner points
-  // orthographic <<
-  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
-  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
-  // 0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
-  // 0., 0., 0.,   1.;
-
   orthographic <<
   2/(r - l), 0., 0., -((r+l)/(r-l)),
   0., 2/(t - b), 0., -((t+b)/(t-b)),
-  0., 0., 2/(f-n), -(n+f)/(f-n),
+  0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
   0., 0., 0.,   1.;
+
+  // orthographic <<
+  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
+  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
+  // 0., 0., 2/(n-f), -(n+f)/(n-f),
+  // 0., 0., 0.,   1.;
 
 
   // perspective maps a frustrum to a unit cube
@@ -235,17 +328,9 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   // VIEW/CAMERA MATRIX
   //------------------------------------------
-  Vector3f e(0.0, 0.0, focal_length); //camera position/ eye position
-  Vector3f g(0.0, 0.0, 0.0); //target point, where we want to look
-  Vector3f t(0.0, 1.0, 0.0); //up vector
-
-  Vector3f w = (e- g).normalized();
-  Vector3f u = (t.cross(w).normalized());
+  Vector3f w = (eye - look_at).normalized();
+  Vector3f u = (up_vec.cross(w).normalized());
   Vector3f v = w.cross(u);
-
-  // cout << "W:" << w << endl;
-  // cout << "U:" << u << endl;
-  // cout << "V:" << v << endl;
 
   Matrix4f look;
   look <<
@@ -256,21 +341,15 @@ void initializeMVP(GLFWwindow* window)
 
   Matrix4f at;
   at <<
-  0.5, 0.0, 0.0, -e[0],
-  0.0, 0.5, 0.0, -e[1],
-  0.0, 0.0, 0.5, -e[2],
+  0.5, 0.0, 0.0, -eye[0],
+  0.0, 0.5, 0.0, -eye[1],
+  0.0, 0.0, 0.5, -eye[2],
   0.0, 0.0, 0.0, 0.5;
   view = look * at;
 
   //------------------------------------------
   // MODEL MATRIX
   //------------------------------------------
-  // float degree = (PI/180) * 10;
-  // model <<
-  // cos(degree),  0., sin(degree), 0,
-  // 0.,           1.,           0, 0,
-  // -sin(degree), 0, cos(degree), 0,
-  // 0,          0,              0, 1;
   translation <<
   1., 0., 0., 0.,
   0., 1., 0., 0.,
@@ -294,6 +373,56 @@ void initializeMVP(GLFWwindow* window)
   //------------------------------------------
   MVP = projection * view * model;
 
+  //------------------------------------------
+  // COLORS
+  //------------------------------------------
+  C <<
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0,
+  1.0,  1.0,  1.0;
+
+  VBO_C.update(C);
+
+  //------------------------------------------
+  // NORMALS
+  //------------------------------------------
+  ObjectType type = Unit;
+  addNormals(type, 0);
+
+
 }
 void addUnitCube()
 {
@@ -307,6 +436,9 @@ void addUnitCube()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 36);
+    N_faces.conservativeResize(3, V.cols() + 12);
+    N_vertices.conservativeResize(3, V.cols() + 36);
+    C.conservativeResize(3, V.cols() + 36);
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
     translation.conservativeResize(4, 4 * numObjects);
@@ -336,7 +468,7 @@ void addUnitCube()
   // Update sizes of all matrices
 
   // BOTTOM
-  V.col(start) << 0.5, -0.5, 0.5;
+  V.col(start) << 0.5f, -0.5f, 0.5f;
   V.col(start + 1) <<   0.5, -0.5, -0.5;
   V.col(start + 2) <<   -0.5,-0.5, -0.5;
   V.col(start + 3) << -0.5,-0.5, -0.5;
@@ -384,10 +516,19 @@ void addUnitCube()
   V.col(start + 35) <<  0.5,  0.5,  0.5;
 
 
+  for(int i = start; i < start + 36; i++){
+    N_vertices.col(i) << 0.0, 0.0, 0.0;
+    C.col(i) << 1.0, 1.0, 1.0;
+  }
+  // Calculate normals for triangle vertices & faces
+  addNormals(t, start);
+
   if(ortho){
     V.block(0, start, 3, 36) /= ORTHO_FACTOR;
   }
+  VBO_C.update(C);
   VBO.update(V);
+
 
 }
 void addBunny()
@@ -396,7 +537,6 @@ void addBunny()
   types.push_back(t);
   RenderType r = Fill;
   renders.push_back(r);
-
 
   // Create data matrices from OFF files
   MatrixXd V_bunny = bunny.first;
@@ -407,6 +547,9 @@ void addBunny()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
+    N_faces.conservativeResize(3, N_faces.cols() + 1000);
+    N_vertices.conservativeResize(3, N_vertices.cols() + 3000);
+    C.conservativeResize(3, V.cols() + 3000);
     // Transformation matrices
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
@@ -435,12 +578,12 @@ void addBunny()
   }else{
 
     V.conservativeResize(3, 3000);
+    N_faces.conservativeResize(3, 1000);
+    N_vertices.conservativeResize(3, 3000);
+    C.conservativeResize(3, 3000);
 
   }
-  // cout << model << endl;
-  // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
-  // Iterate through columns of V and get 3 3D points to build 1 triangle
-  // cout << "F_bunny shape: " << F_bunny.rows() << "," << F_bunny.cols() << endl;
+
   for(int i = 0; i < F_bunny.rows(); i++)
   {
     for(int j = 0; j < F_bunny.cols(); j++)
@@ -453,12 +596,16 @@ void addBunny()
         vertices.push_back(V_bunny(idx,x));
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+      C.col(start + (i*3) + j) << 0.0, 1.0, 0.0; // green
     }
   }
+  addNormals(t, start);
 
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
+  cout << "C is now: \n" << C.block(0, start, 3, 3) << endl;;
+  VBO_C.update(C);
   VBO.update(V);
 
 }
@@ -477,6 +624,9 @@ void addBumpy()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
+    N_faces.conservativeResize(3, N_faces.cols() + 1000);
+    N_vertices.conservativeResize(3, N_vertices.cols() + 3000);
+    C.conservativeResize(3, V.cols() + 3000);
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
     translation.conservativeResize(4, 4 * numObjects);
@@ -503,6 +653,9 @@ void addBumpy()
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
+    N_faces.conservativeResize(3, 1000);
+    N_vertices.conservativeResize(3, 3000);
+    C.conservativeResize(3, 3000);
   }
   // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   // Iterate through columns of V and get 3 3D points to build 1 triangle
@@ -518,54 +671,17 @@ void addBumpy()
         vertices.push_back(V_bumpy(idx,x));
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+      C.col(start + (i*3) + j) << 0.0, 0.0, 1.0;
     }
   }
+
+  addNormals(t, start);
+
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
+  VBO_C.update(C);
   VBO.update(V);
-}
-void colorCube()
-{
-  // colors <<
-  // 0.583f,  0.771f,  0.014f,
-  // 0.609f,  0.115f,  0.436f,
-  // 0.327f,  0.483f,  0.844f,
-  // 0.822f,  0.569f,  0.201f,
-  // 0.435f,  0.602f,  0.223f,
-  // 0.310f,  0.747f,  0.185f,
-  // 0.597f,  0.770f,  0.761f,
-  // 0.559f,  0.436f,  0.730f;
-  // 0.359f,  0.583f,  0.152f,
-  // 0.483f,  0.596f,  0.789f,
-  // 0.559f,  0.861f,  0.639f,
-  // 0.195f,  0.548f,  0.859f,
-  // 0.014f,  0.184f,  0.576f,
-  // 0.771f,  0.328f,  0.970f,
-  // 0.406f,  0.615f,  0.116f,
-  // 0.676f,  0.977f,  0.133f,
-  // 0.971f,  0.572f,  0.833f,
-  // 0.140f,  0.616f,  0.489f,
-  // 0.997f,  0.513f,  0.064f,
-  // 0.945f,  0.719f,  0.592f,
-  // 0.543f,  0.021f,  0.978f,
-  // 0.279f,  0.317f,  0.505f,
-  // 0.167f,  0.620f,  0.077f,
-  // 0.347f,  0.857f,  0.137f,
-  // 0.055f,  0.953f,  0.042f,
-  // 0.714f,  0.505f,  0.345f,
-  // 0.783f,  0.290f,  0.734f,
-  // 0.722f,  0.645f,  0.174f,
-  // 0.302f,  0.455f,  0.848f,
-  // 0.225f,  0.587f,  0.040f,
-  // 0.517f,  0.713f,  0.338f,
-  // 0.053f,  0.959f,  0.120f,
-  // 0.393f,  0.621f,  0.362f,
-  // 0.673f,  0.211f,  0.457f,
-  // 0.820f,  0.883f,  0.371f,
-  // 0.982f,  0.099f,  0.879f;
-  // VBO_C.update(colors);
-
 }
 // Translates triangle based on mouse movement
 void translateTriangle()
@@ -624,9 +740,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     currentX = xworld;
     currentY = yworld;
   }
-  if(selectedPress){
-    translateTriangle();
-  }
+
 }
 // Solve for x, given Ax = b
 vector<float> solver(Vector3f &a_coord, Vector3f &b_coord, Vector3f &c_coord, Vector3f &ray_direction, Vector3f &ray_origin)
@@ -693,7 +807,6 @@ vector<Vector3d> get_triangle_coordinates(MatrixXd &V, MatrixXd &F, unsigned row
   return ret;
 }
 
-// 1.4 Ray Tracing Triangle Meshes
 bool does_intersect(float t, float u, float v)
 {
   if(t > 0 && u >= 0 && v >=0 && (u+v) <= 1){ return true; }
@@ -832,6 +945,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if(action == GLFW_RELEASE){
       switch (key)
       {
+        // ADDING OBJECTS
         case  GLFW_KEY_1:
             cout << "Adding unit cube to the origin" << endl;
             numObjects++;
@@ -847,27 +961,81 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             numObjects++;
             addBunny();
             break;
-        case  GLFW_KEY_7:
+        // RENDERING SETTINGS
+        case  GLFW_KEY_4:
             cout << "Wireframe" << endl;
             break;
-        case  GLFW_KEY_8:
+        case  GLFW_KEY_5:
             cout << "Flat Shading" << endl;
             break;
-        case  GLFW_KEY_9:
+        case  GLFW_KEY_6:
             cout << "Phong Shading" << endl;
             break;
+        // CAMERA TRANSLATION
+        case  GLFW_KEY_7:
+            cout << "Moving camera LEFT" << endl;
+            break;
+        case  GLFW_KEY_8:
+            cout << "Moving camera RIGHT" << endl;
+            break;
+        case  GLFW_KEY_9:
+            cout << "Moving camera UP" << endl;
+            break;
+        case  GLFW_KEY_0:
+            cout << "Moving camera DOWN" << endl;
+            break;
+        case GLFW_KEY_MINUS:
+          cout << "Moving camera IN" << endl;
+          break;
+        case GLFW_KEY_EQUAL:
+          cout << "Moving camera OUT" << endl;
+          break;
+        // OBJECT ROTATION
+        case  GLFW_KEY_F:
+            cout << "Rotating 10 degrees along Z-axis " << endl;
+            break;
+        case  GLFW_KEY_G:
+            cout << "Rotating -10 degrees along Z-axis" << endl;
+            break;
         case  GLFW_KEY_H:
-            cout << "Rotating 10 degrees clockwise" << endl;
+            cout << "Rotating 10 degrees along X-axis" << endl;
             break;
         case  GLFW_KEY_J:
-            cout << "Rotating 10 degrees counter-clockwise" << endl;
+            cout << "Rotating -10 degrees along X-axis" << endl;
             break;
         case  GLFW_KEY_K:
-            cout << "Scaling UP by 25 percent" << endl;
+            cout << "Rotating 10 degrees along Y-axis" << endl;
             break;
         case  GLFW_KEY_L:
-            cout << "Scaling DOWN by 25 percent" << endl;
+            cout << "Rotating -10 degrees along Y-axis" << endl;
             break;
+        // OBJECT TRANSLATION
+        case  GLFW_KEY_W:
+            cout << "Moving object RIGHT " << endl;
+            break;
+        case  GLFW_KEY_E:
+            cout << "Movign object LEFT" << endl;
+            break;
+        case  GLFW_KEY_R:
+            cout << "Moving object UP" << endl;
+            break;
+        case  GLFW_KEY_T:
+            cout << "Moving object DOWN" << endl;
+            break;
+        case  GLFW_KEY_Y:
+            cout << "Moving object IN" << endl;
+            break;
+        case  GLFW_KEY_U:
+            cout << "Moving object OUT" << endl;
+            break;
+        // OBJECT SCALING
+        case  GLFW_KEY_S:
+            cout << "Scaling UP" << endl;
+            break;
+        case  GLFW_KEY_D:
+            cout << "Scaling DOWN" << endl;
+            break;
+        // PROJECTION
         case  GLFW_KEY_O:
             cout << "Orthographic Projection" << endl;
             ortho = true;
@@ -876,18 +1044,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             cout << "Perspective Projection" << endl;
             ortho = false;
             break;
-        case GLFW_KEY_RIGHT:
-          cout << "Moving camera right" << endl;
-          break;
-        case GLFW_KEY_LEFT:
-          cout << "Moving camera left" << endl;
-          break;
-        case GLFW_KEY_UP:
-          cout << "Moving camera up" << endl;
-          break;
-        case GLFW_KEY_DOWN:
-          cout << "Moving camera down" << endl;
-          break;
         default:
             break;
       }
@@ -950,52 +1106,9 @@ int main(void)
     VAO.init();
     VAO.bind();
 
-    // Initialize the VBO with the vertices data
-    // A VBO is a data container that lives in the GPU memory
-    VBO.init();
 
-    V <<
-    -0.0, -0.0,  0.0,
-     0.0, -0.0,  0.0,
-     0.0, -0.0, -0.0, //bottom triangle
-    -0.0, -0.0, -0.0,
-    -0.0, -0.0,  0.0,
-     0.0, -0.0, -0.0, //upper triangle
-    -0.0, -0.0, -0.0,
-     0.0, -0.0, -0.0,
-     0.0,  0.0, -0.0, //bottom triangle
-    -0.0,  0.0, -0.0,
-    -0.0, -0.0, -0.0,
-     0.0,  0.0, -0.0, //upper triangle
-     -0.0, -0.0,  0.0,
-     -0.0,  0.0,  0.0,
-     -0.0, -0.0, -0.0, //bottom triangle
-     -0.0,  0.0,  0.0,
-     -0.0, -0.0, -0.0,
-     -0.0,  0.0, -0.0, //upper triangle
-     0.0, -0.0,  0.0,
-     0.0,  0.0,  0.0,
-     0.0, -0.0, -0.0, //bottom triangle
-     0.0, -0.0, -0.0,
-     0.0,  0.0,  0.0,
-     0.0,  0.0, -0.0, //upper triangle
-     0.0,  0.0,  0.0,
-     0.0,  0.0, -0.0,
-     -0.0, 0.0, 0.0, //bottom triangle
-     -0.0, 0.0, -0.0,
-     0.0,  0.0, -0.0,
-     -0.0, 0.0, 0.0, //upper triangle
-     -0.0, -0.0,  0.0,
-      0.0, -0.0,  0.0,
-      0.0,  0.0,  0.0, //bottom triangle
-     -0.0, -0.0,  0.0,
-      0.0,  0.0,  0.0,
-     -0.0,  0.0,  0.0; //upper triangle
-     VBO.update(V);
-
-
-    // Initialize the MVP uniform
-    initializeMVP(window);
+    // Initialize everything needed
+    initialize(window);
 
     //------------------------------------------
     // OFF DATA
@@ -1014,23 +1127,54 @@ int main(void)
     Program program;
     const GLchar* vertex_shader =
             "#version 150 core\n"
-                    "in vec3 position;"
-                    "uniform mat4 MVP;"
-                    // "in vec3 color;"
-                    // "out vec3 f_color;"
+                    "in vec3 position;" //vertex position
+                    "in vec3 color;" //vertex color
+                    "in vec3 vertex_normal;"
+                    "in vec3 face_normal;"
+                    // MVP
+                    "uniform mat4 model;"
+                    "uniform mat4 view;"
+                    "uniform mat4 projection;"
+
+                    "out vec3 Normal;"
+                    "out vec3 FragPos;"
+                    "out vec3 objectColor;"
                     "void main()"
                     "{"
-                    "    gl_Position = MVP * vec4(position, 1.0);"
-                    // "    f_color = color;"
+                    "    gl_Position = projection * view * model * vec4(position, 1.0);"
+                    "    FragPos = vec3(model * vec4(position, 1.0f));"
+                    "    Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    "    objectColor = color;"
                     "}";
     const GLchar* fragment_shader =
             "#version 150 core\n"
-                    // "in vec3 f_color;"
+                    "in vec3 Normal;"
+                    "in vec3 FragPos;"
+                    "in vec3 objectColor;"
                     "out vec4 outColor;"
-                    "uniform vec3 triangleColor;"
+                    "uniform vec3 lightPos;"
+                    "uniform vec3 viewPos;"
                     "void main()"
                     "{"
-                    "    outColor = vec4(triangleColor, 1.0);"
+                    "    vec3 lightColor = vec3(0.0, 1.0, 0.0);"
+                        // Ambient
+                  "      float ambientStrength = 0.01f;"
+                  "      vec3 ambient = ambientStrength * lightColor;"
+
+                        // Diffuse
+                  "      vec3 norm = normalize(Normal);"
+                  "      vec3 lightDir = normalize(lightPos - FragPos);"
+                  "      float diff = max(dot(norm, lightDir), 0.0);"
+                  "      vec3 diffuse = diff * lightColor;"
+
+                        // Specular
+                  "      float specularStrength = 0.5f;"
+                  "      vec3 viewDir = normalize(viewPos - FragPos);"
+                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
+                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  "      vec3 specular = specularStrength * spec * lightColor;  "
+                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
+                  "      outColor = vec4(result, 1.0);"
                     "}";
 
     // Compile the two shaders and upload the binary to the GPU
@@ -1043,7 +1187,12 @@ int main(void)
     // The following line connects the VBO we defined above with the position "slot"
     // in the vertex shader
     program.bindVertexAttribArray("position",VBO);
-    // program.bindVertexAttribArray("color",VBO_C);
+    program.bindVertexAttribArray("color",VBO_C);
+    program.bindVertexAttribArray("vertex_normal",VBO_N_V);
+    program.bindVertexAttribArray("face_normal",VBO_N_F);
+
+    glUniform3f(program.uniform("lightPos"), 1.0, 1.0, 2.0);
+    glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -1057,7 +1206,8 @@ int main(void)
     // Register the mouse movement callback
     glfwSetCursorPosCallback(window, cursor_pos_callback);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
     {
@@ -1076,17 +1226,23 @@ int main(void)
 
           switch(t){
             case Unit:
-              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 36);
               start += 36;
               break;
             case Bunny:
-              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
-              glDrawArrays(GL_TRIANGLES, start, 3000);
+                glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
+                glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
+                glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
+                glDrawArrays(GL_TRIANGLES, start, 3000);
               start += 3000;
               break;
             case Bumpy:
-              glUniformMatrix4fv(program.uniform("MVP"), 1, GL_FALSE, MVP.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
+              glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 3000);
               start += 3000;
               break;
