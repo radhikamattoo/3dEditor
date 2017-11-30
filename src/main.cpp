@@ -173,7 +173,7 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
       if(enlarge){
         V(v,j) = (line_data[j]*7);
       }else{
-        V(v,j) = (line_data[j]/8);
+        V(v,j) = (line_data[j]/7);
       }
       if(!enlarge){ //cube
         // V(v,0) += 0.1;
@@ -225,12 +225,54 @@ void addNormals(ObjectType type, int start)
       VBO_N_V.update(N_vertices);
       VBO_N_F.update(N_faces);
       break;
-    // case Bunny:
-    //   cout << "fuck u" << endl;
-    //   break;
-    // case Bumpy:
-    //   cout << "fuck u" << endl;
-    //   break;
+    case Bunny:
+      // go through faces
+      for(int i = start; i < start + 3000; i+=3)
+      {
+        Vector3f edge1 = V.col(i + 1) - V.col(i);
+        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f normal = (edge1.cross(edge2)).normalized();
+        N_faces.col(i) << normal;
+        N_faces.col(i + 1) << normal;
+        N_faces.col(i + 1) << normal;
+        N_vertices.col(i) += normal;
+        N_vertices.col(i + 1) += normal;
+        N_vertices.col(i + 2) += normal;
+      }
+      for(int i = start; i < start + 3000; i++)
+      {
+        N_vertices.col(i) = N_vertices.col(i).normalized();
+      }
+      cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
+
+      VBO_N_V.update(N_vertices);
+      VBO_N_F.update(N_faces);
+      break;
+    case Bumpy:
+      // go through faces
+      for(int i = start; i < start + 3000; i+=3)
+      {
+        Vector3f edge1 = V.col(i + 1) - V.col(i);
+        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f normal = (edge1.cross(edge2)).normalized();
+
+        N_faces.col(i) << normal;
+        N_faces.col(i + 1) << normal;
+        N_faces.col(i + 1) << normal;
+        N_vertices.col(i) += normal;
+        N_vertices.col(i + 1) += normal;
+        N_vertices.col(i + 2) += normal;
+
+      }
+      for(int i = start; i < start + 3000; i++)
+      {
+        N_vertices.col(i) = N_vertices.col(i).normalized();
+        // cout << "Normalized: \n" << N_vertices.col(i) << endl;
+      }
+      cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
+      VBO_N_V.update(N_vertices);
+      VBO_N_F.update(N_faces);
+      break;
   }
 }
 void initialize(GLFWwindow* window)
@@ -330,9 +372,6 @@ void initialize(GLFWwindow* window)
   Vector3f w = (eye - look_at).normalized();
   Vector3f u = (up_vec.cross(w).normalized());
   Vector3f v = w.cross(u);
-  cout << "W: \n" << w << endl;
-  cout << "U: \n" << u << endl;
-  cout << "V: \n" << v << endl;
 
   Matrix4f look;
   look <<
@@ -348,8 +387,6 @@ void initialize(GLFWwindow* window)
   0.0, 0.0, 0.5, -eye[2],
   0.0, 0.0, 0.0, 0.5;
   view = look * at;
-
-  cout << "View: \n" << view << endl;
 
   //------------------------------------------
   // MODEL MATRIX
@@ -518,7 +555,7 @@ void addUnitCube()
   V.col(start + 34) <<   -0.5, -0.5,  0.5;
   V.col(start + 35) <<  0.5,  0.5,  0.5;
 
-
+  // initialize C & N
   for(int i = start; i < start + 36; i++){
     N_vertices.col(i) << 0.0, 0.0, 0.0;
     C.col(i) << 1.0, 1.0, 1.0;
@@ -550,7 +587,7 @@ void addBunny()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
-    N_faces.conservativeResize(3, N_faces.cols() + 1000);
+    N_faces.conservativeResize(3, N_faces.cols() + 3000);
     N_vertices.conservativeResize(3, N_vertices.cols() + 3000);
     C.conservativeResize(3, V.cols() + 3000);
     // Transformation matrices
@@ -581,7 +618,7 @@ void addBunny()
   }else{
 
     V.conservativeResize(3, 3000);
-    N_faces.conservativeResize(3, 1000);
+    N_faces.conservativeResize(3, 3000);
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
 
@@ -600,14 +637,17 @@ void addBunny()
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
       C.col(start + (i*3) + j) << 0.0, 1.0, 0.0; // green
+      N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+      N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+
     }
   }
+  cout << "C is now: \n" << C.block(0, start, 3, 6) << endl;
   addNormals(t, start);
 
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
-  cout << "C is now: \n" << C.block(0, start, 3, 3) << endl;;
   VBO_C.update(C);
   VBO.update(V);
 
@@ -627,7 +667,7 @@ void addBumpy()
   if(numObjects > 1){
     start = V.cols();
     V.conservativeResize(3, V.cols() + 3000);
-    N_faces.conservativeResize(3, N_faces.cols() + 1000);
+    N_faces.conservativeResize(3, N_faces.cols() + 3000);
     N_vertices.conservativeResize(3, N_vertices.cols() + 3000);
     C.conservativeResize(3, V.cols() + 3000);
     model.conservativeResize(4, 4 * numObjects);
@@ -656,7 +696,7 @@ void addBumpy()
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
-    N_faces.conservativeResize(3, 1000);
+    N_faces.conservativeResize(3, 3000);
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
   }
@@ -674,7 +714,10 @@ void addBumpy()
         vertices.push_back(V_bumpy(idx,x));
       }
       V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-      C.col(start + (i*3) + j) << 0.0, 0.0, 1.0;
+      C.col(start + (i*3) + j) << 0.0, 1.0, 0.0;
+      N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+      N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+
     }
   }
 
@@ -683,6 +726,7 @@ void addBumpy()
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
+
   VBO_C.update(C);
   VBO.update(V);
 }
@@ -1121,8 +1165,6 @@ int main(void)
     // V = bunny/bumpy.first - holds 3D coordinates
     // F = bunny/bumpy.second - holds indices of triangles
     // indices from F matrix into 3D coordinates from V
-    cout << "Bunny V size: " << bunny.first.cols() << "," << bunny.first.rows() << endl;
-    cout << "Bunny F  size: " << bunny.second.cols() << "," << bunny.second.rows() <<  endl;
 
     // Initialize the OpenGL Program
     // A program controls the OpenGL pipeline and it must contains
@@ -1135,11 +1177,10 @@ int main(void)
                     "in vec3 vertex_normal;"
                     "in vec3 face_normal;"
                     // MVP
+                    // "uniform boolean flat;"
                     "uniform mat4 model;"
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
-                    // "uniform bool flat;"
-
 
                     "out vec3 Normal;"
                     "out vec3 FragPos;"
@@ -1204,7 +1245,7 @@ int main(void)
 
     glUniform3f(program.uniform("lightPos"), 1.0, 1.0, 2.0);
     glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
-    glUniform1i(program.uniform("flat"), 1);
+    // glUniform1i(program.uniform("flat"), GL_TRUE);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -1241,9 +1282,6 @@ int main(void)
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
               glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
               glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
-              glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-              glDrawArrays(GL_TRIANGLES, start, 36);
-              glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
               glDrawArrays(GL_TRIANGLES, start, 36);
               start += 36;
               break;
