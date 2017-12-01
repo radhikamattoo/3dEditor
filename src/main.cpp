@@ -70,7 +70,7 @@ int selected_index = -1;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(1.2, 1.0, 2.0);
+Vector3f lightPos(2.0, 2.0, 1.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
@@ -99,7 +99,7 @@ pair<MatrixXd, MatrixXd> bumpy;
 // VIEW MATRIX PARAMETERS
 //----------------------------------
 float focal_length = 1.0;
-Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
+Vector3f eye(-2.0, -2.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
 
@@ -244,7 +244,6 @@ void addNormals(ObjectType type, int start)
           N_vertices.col(idx) = sum;
         }
       }
-      cout << N_vertices << endl;
 
       VBO_N_V.update(N_vertices);
       VBO_N_F.update(N_faces);
@@ -1256,9 +1255,9 @@ int main(void)
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
                     // "    if(flat){"
-                    // "       Normal = mat3(transpose(inverse(model))) * face_normal;"
+                    "       Normal = mat3(transpose(inverse(model))) * face_normal;"
                     // "    }else{"
-                    "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    // "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
                     // "    }"
                     "    objectColor = color;"
                     "}";
@@ -1275,7 +1274,7 @@ int main(void)
                     "{"
                     "    vec3 lightColor = vec3(1.0, 1.0, 1.0);"
                         // Ambient
-                  "      float ambientStrength = 0.001f;"
+                  "      float ambientStrength = 0.01f;"
                   "      vec3 ambient = ambientStrength * lightColor;"
 
                         // Diffuse
@@ -1283,15 +1282,15 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
-                  // "      vec3 result = (ambient + diffuse) * objectColor;"
+                  "      vec3 result = (ambient + diffuse) * objectColor;"
 
                         // Specular
-                  "      float specularStrength = 0.5f;"
-                  "      vec3 viewDir = normalize(viewPos - FragPos);"
-                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
-                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
-                  "      vec3 specular = specularStrength * spec * lightColor;  "
-                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
+                  // "      float specularStrength = 0.5f;"
+                  // "      vec3 viewDir = normalize(viewPos - FragPos);"
+                  // "      vec3 reflectDir = reflect(-lightDir, norm);  "
+                  // "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  // "      vec3 specular = specularStrength * spec * lightColor;  "
+                  // "      vec3 result = (ambient + diffuse + specular) * objectColor;"
                   "      outColor = vec4(result, 1.0);"
                     "}";
 
@@ -1355,19 +1354,19 @@ int main(void)
               // glLineWidth(1.0f);
               glDrawArrays(GL_TRIANGLES, start, 36);
 
-              // MatrixXf holder = MatrixXf::Zero(3,36);
-              // for(int i = start; i < start + 36; i++){
-              //   holder.col(i) = C.col(i);
-              //   C.col(i) << 0.0, 0.0, 0.0;
-              // }
-              // VBO_C.update(C);
-              //
-              // glDrawArrays(GL_LINE_LOOP, start, 36);
-              //
-              // for(int i = start; i < start + 36; i++){
-              //   C.col(i) = holder.col(i);
-              // }
-              // VBO_C.update(C);
+              MatrixXf holder = MatrixXf::Zero(3,36);
+              for(int i = start; i < start + 36; i++){
+                holder.col(i) = C.col(i);
+                C.col(i) << 0.0, 0.0, 0.0;
+              }
+              VBO_C.update(C);
+
+              glDrawArrays(GL_LINE_LOOP, start, 36);
+
+              for(int i = start; i < start + 36; i++){
+                C.col(i) = holder.col(i);
+              }
+              VBO_C.update(C);
               start += 36;
               break;
             }
@@ -1375,19 +1374,21 @@ int main(void)
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
               glDrawArrays(GL_TRIANGLES, start, 3000);
 
-              // MatrixXf holder = MatrixXf::Zero(3,3000);
-              // for(int i = start; i < start + 3000; i++){
-              //   holder.col(i) = C.col(i);
-              //   C.col(i) << 0.0, 0.0, 0.0;
-              // }
-              // VBO_C.update(C);
-              //
-              // glDrawArrays(GL_LINE_LOOP, start, 3000);
-              //
-              // for(int i = start; i < start + 3000; i++){
-              //   C.col(i) = holder.col(i);
-              // }
-              // VBO_C.update(C);
+              MatrixXf holder = MatrixXf::Zero(3,3000);
+              for(int i = start; i < start + 3000; i++){
+                holder.col(i) = C.col(i);
+                C.col(i) << 0.0, 0.0, 0.0;
+              }
+              VBO_C.update(C);
+
+              for(int i = start; i < start + 3000; i+=3){
+                glDrawArrays(GL_LINE_LOOP, i, 3);
+              }
+
+              for(int i = start; i < start + 3000; i++){
+                C.col(i) = holder.col(i);
+              }
+              VBO_C.update(C);
               start += 3000;
               break;
             }
@@ -1395,6 +1396,22 @@ int main(void)
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
 
               glDrawArrays(GL_TRIANGLES, start, 3000);
+
+              MatrixXf holder = MatrixXf::Zero(3,3000);
+              for(int i = start; i < start + 3000; i++){
+                holder.col(i) = C.col(i);
+                C.col(i) << 0.0, 0.0, 0.0;
+              }
+              VBO_C.update(C);
+
+              for(int i = start; i < start + 3000; i+=3){
+                glDrawArrays(GL_LINE_LOOP, i, 3);
+              }
+
+              for(int i = start; i < start + 3000; i++){
+                C.col(i) = holder.col(i);
+              }
+              VBO_C.update(C);
               start += 3000;
               break;
             }
