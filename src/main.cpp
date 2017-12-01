@@ -57,7 +57,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -69,10 +69,11 @@ double currentX, currentY, previousX, previousY;
 bool selected = false;
 int selected_index = -1;
 int selected_vertex_index = -1;
+ObjectType select_type;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(1.0, 1.0, 1.0);
+Vector3f lightPos(1.0, 1.0, 0.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
@@ -109,6 +110,7 @@ MatrixXf bunny_vertices = MatrixXf::Zero(3,3000);
 
 MatrixXf bumpy_faces = MatrixXf::Zero(3,3000);
 MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
+
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
@@ -159,6 +161,7 @@ vector<float> split_line(string line, bool F)
   }
   return data;
 }
+
 // Iterates through given OFF file and fills V & F matrices
 pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
 {
@@ -193,8 +196,8 @@ pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
         // V(v,0) += 0.1;
         // V(v,1) += 0.1;
       }else{ //bunny
-        V(v,0) += 0.05;
-        V(v,1) -= 0.35;
+        // V(v,0) += 0.05;
+        // V(v,1) -= 0.35;
       }
     }
 
@@ -213,6 +216,7 @@ pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
   return matrices;
 
 }
+
 bool isInVector(vector<int> summed, int idx){
   for(int i = 0; i < summed.size(); i++){
     if(idx == summed[i]) return true;
@@ -261,7 +265,7 @@ void addNormals(ObjectType type)
         unit_vertices.col(i + 1) += normal;
         unit_vertices.col(i + 2) += normal;
       }
-
+      cout << "Done going through UNIT faces, going thru vertices"<< endl;
       for(int i = 0; i <  36; i++){
         vector<int> summed;
         Vector3f current = unit_vertex_holder.col(i);
@@ -282,6 +286,7 @@ void addNormals(ObjectType type)
           unit_vertices.col(idx) = sum;
         }
       }
+      cout << "Done with Unit cube" << endl;
       break;
     }
 
@@ -299,7 +304,7 @@ void addNormals(ObjectType type)
         bunny_vertices.col(i + 1) += normal;
         bunny_vertices.col(i + 2) += normal;
       }
-
+      cout << "Done going through BUNNY faces, going thru vertices"<< endl;
       for(int i = 0; i < 3000; i++){
         vector<int> summed;
         Vector3f current = bunny_vertex_holder.col(i);
@@ -320,6 +325,7 @@ void addNormals(ObjectType type)
           bunny_vertices.col(idx) = sum;
         }
       }
+      cout << "Done with BUNNY" << endl;
       // cout << N_vertices << endl;
 
       // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
@@ -366,6 +372,7 @@ void addNormals(ObjectType type)
     }
   }
 }
+
 void initialize(GLFWwindow* window)
 {
   VBO.init();
@@ -546,7 +553,21 @@ void initialize(GLFWwindow* window)
   0., 0., 1., 0.,
   0., 0., 0., 1.;
 
-  model = translation * rotation * scaling;
+  cout << "Setting model matrix" << endl;
+  if (ortho){
+    model <<
+        1./70,     0.,     0.,     0.,
+        0.,     1./70,     0.,     0.,
+        0.,     0.,     1./70,     0.,
+        0.,     0.,     0.,     1.;
+  }else {
+    model <<
+        1.,     0.,     0.,     0.,
+        0.,     1.,     0.,     0.,
+        0.,     0.,     1.,     0.,
+        0.,     0.,     0.,     1.;
+  }
+  cout << "Done setting model matrix" << endl;
 
   //------------------------------------------
   // MVP MATRIX
@@ -638,19 +659,23 @@ void initialize(GLFWwindow* window)
     }
   }
 
+  cout << "Adding normals" << endl;
   ObjectType t = Unit;
   addNormals(t);
   t = Bunny;
   addNormals(t);
   t = Bumpy;
   addNormals(t);
+  cout << "Done adding normals" << endl;
 
   N_vertices = unit_vertices;
   N_faces = unit_faces;
   VBO_N_F.update(N_faces);
   VBO_N_V.update(N_vertices);
+  cout << "Done init" << endl;
 
 }
+
 void addUnitCube()
 {
   ObjectType t = Unit;
@@ -688,10 +713,23 @@ void addUnitCube()
     0., 0., 1., 0.,
     0., 0., 0., 1.;
 
-    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
+    // model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
+
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }
-
+  if (ortho){
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+        1.,     0.,     0.,     0.,
+        0.,     1.,     0.,     0.,
+        0.,     0.,     1.,     0.,
+        0.,     0.,     0.,     1.;
+  }else {
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+        1.,     0.,     0.,     0.,
+        0.,     1.,     0.,     0.,
+        0.,     0.,     1.,     0.,
+        0.,     0.,     0.,     1.;
+  }
   // Update sizes of all matrices
 
   // BOTTOM
@@ -798,13 +836,37 @@ void addBunny()
     0., 0., 1., 0.,
     0., 0., 0., 1.;
 
-    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
     N_faces.conservativeResize(3, 3000);
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
+  }
+
+  if(ortho){
+    model.block(0, 4*(numObjects-1), 4, 4)<<
+        // 0.0914923,    0.,            0.,                0.0015583,
+        // 0.,           0.0926906,     0.,                -0.0102434,
+        // 0.,           0.,            0.117538,          0.000170675,
+        // 0.,           0.,            0.,                1.;
+
+        1.,    0.,            0.,                0.0015583,
+        0.,          1.0,     0.,                -0.0102434,
+        0.,           0.,            1.,          0.000170675,
+        0.,           0.,            0.,                1.;
+
+  }else{
+    model.block(0, 4*(numObjects-1), 4, 4)<<
+    // 6.40446,    0.,            0.,                                    0.1,
+    // 0.,         6.48835,       0.,                                    -0.65,
+    // 0.,         0.,            8.22766,                               -0.2,
+    // 0.109091,         -0.717025,            0.0119573,                1.;
+
+    1,    0.,            0.,                                    0.1,
+      0.,         1,       0.,                                    -0.65,
+      0.,         0.,            1,                               -0.2,
+      0.,         0.,            0.,                1.;
   }
 
   int bunny_idx = 0;
@@ -864,13 +926,27 @@ void addBumpy()
     0., 0., 1., 0.,
     0., 0., 0., 1.;
 
-    model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
+
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
     V.conservativeResize(3, 3000);
     N_faces.conservativeResize(3, 3000);
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
+  }
+
+  if(ortho){
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+        1.,   0.,         0.,         0.,
+        0.,         1.,   0.,         0.,
+        0.,         0.,         1.,   0.,
+        0.,         0.,         0.,         1.;
+  }else{
+    model.block(0, 4 * (numObjects-1), 4, 4) <<
+        1.0,   0.,         0.,         0.,
+        0.,         1.0,   0.,         0.,
+        0.,         0.,         1.0,   0.,
+        0.,         0.,         0.,         1.;
   }
 
   int bumpy_idx = 0;
@@ -948,6 +1024,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
   }
 
 }
+
 // Solve for x, given Ax = b
 vector<float> solver(Vector3f &a_coord, Vector3f &b_coord, Vector3f &c_coord, Vector3f &ray_direction, Vector3f &ray_origin)
 {
@@ -1019,6 +1096,156 @@ bool does_intersect(float t, float u, float v)
   return false;
 }
 
+pair<int, int> wasSelected(double xworld, double yworld)
+{
+  selected_index = -1;
+  selected_vertex_index = -1;
+  int start_idx = 0; //start index of object in V
+  int model_idx = 0; //start index of object's model matrix
+  double triangle_depth = -1000000;
+  // iterate through all objects in the scene
+  for(int type = 0; type < types.size(); type++)
+  {
+    ObjectType t = types[type];
+    switch(t){
+      case Unit:{
+        MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
+        cout << model_matrix << endl;
+        for(int v = start_idx; v < start_idx + 36; v+=3){
+          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
+          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
+          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
+          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
+          double ax = a(0);
+          double ay = a(1);
+          double az = a(2);
+          double bx = b(0);
+          double by = b(1);
+          double bz = b(2);
+          double cx = c(0);
+          double cy = c(1);
+          double cz = c(2);
+          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
+          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
+          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
+          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
+          // Solve system for alpha, beta, and gamma
+          double alpha = alpha_area / total_area;
+          double beta = beta_area / total_area;
+          double gamma = gamma_area / total_area;
+          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
+             double depth = max(az, max(bz, cz));
+             if (depth > triangle_depth) {
+                 cout << "SELECTED UNIT CUBE" << endl;
+                 selected_index = type; //index in types of selected object
+                 select_type = types[type];
+                 selected_vertex_index = start_idx;
+                 // deletion_end_index =  end_index;
+                 triangle_depth = depth;
+                 // index_of_object = type; //index in V of selected object
+             }
+          }
+        }
+        cout << "model index: "<< model_idx << endl;
+        start_idx += 36;
+        model_idx += 4;
+        break;
+      }
+      case Bunny:{
+        MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
+        for(int v = start_idx; v < start_idx + 3000; v+=3){
+          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
+          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
+          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
+          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
+          double ax = a(0);
+          double ay = a(1);
+          double az = a(2);
+          double bx = b(0);
+          double by = b(1);
+          double bz = b(2);
+          double cx = c(0);
+          double cy = c(1);
+          double cz = c(2);
+          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
+          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
+          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
+          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
+          // Solve system for alpha, beta, and gamma
+          double alpha = alpha_area / total_area;
+          double beta = beta_area / total_area;
+          double gamma = gamma_area / total_area;
+
+          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
+             double depth = max(az, max(bz, cz));
+             if (depth > triangle_depth) {
+                 cout << "SELECTED BUNNY" << endl;
+                 selected_index = type; //index in types of selected object
+                 select_type = types[type];
+                 selected_vertex_index = start_idx;
+                 // deletion_end_index =  end_index;
+                 triangle_depth = depth;
+                 // index_of_object = type; //index in V of selected object
+             }
+          }
+        }
+        start_idx += 3000;
+        model_idx += 4;
+        break;
+      }
+      case Bumpy:{
+        MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
+        for(int v = start_idx; v < start_idx + 3000; v+=3){
+          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
+          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
+          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
+          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
+          double ax = a(0);
+          double ay = a(1);
+          double az = a(2);
+          double bx = b(0);
+          double by = b(1);
+          double bz = b(2);
+          double cx = c(0);
+          double cy = c(1);
+          double cz = c(2);
+          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
+          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
+          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
+          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
+          // Solve system for alpha, beta, and gamma
+          double alpha = alpha_area / total_area;
+          double beta = beta_area / total_area;
+          double gamma = gamma_area / total_area;
+
+          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
+             double depth = max(az, max(bz, cz));
+             if (depth > triangle_depth) {
+                 cout << "Selected BUMPY CUBE" << endl;
+                 selected_index = type; //index in types of selected object
+                 select_type = types[type];
+                 selected_vertex_index = start_idx;
+                 // deletion_end_index =  end_index;
+                 triangle_depth = depth;
+                 // index_of_object = type; //index in V of selected object
+             }
+          }
+        }
+        start_idx += 3000;
+        model_idx += 4;
+        break;
+      }
+    }
+  } //end of for loop
+  return pair<int,int>(selected_vertex_index, selected_index);
+
+}
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
   // Get the position of the mouse in the window
@@ -1029,116 +1256,31 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
+    Vector4f p_screen(xpos,height-1-ypos,0,1);
+    Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
+    Vector4f p_camera = projection.inverse() * p_canonical;
+    Vector4f p_world = view.inverse() * p_camera;
 
-    double aspect = double(width)/double(height);
-    // cout << "Width: " << width << endl; //640
-    // cout << "Height: " << height << endl; //480
-
+    double x_world, y_world;
     if(action == GLFW_PRESS){
       // Check if an object was clicked on and select it
-      // TODO: ORTHOGRAPHIC PROJECTION NOT WORKING
+      if(ortho){
+        x_world = p_world[0]/4.17421;
+        y_world = p_world[1]/4.17421;
+      }else{
+        x_world = p_world[0] * 0.5 * 1.91632;
+        y_world = p_world[1] * 0.5 * 1.91632;
+      }
+      pair<int, int> result = wasSelected(x_world, y_world);
 
-      // Construct ray and convert to world coordinates
-      Vector3f ray_direction(0., 0., -1.);
+      selected_vertex_index = result.first;
+      selected_index = result.second;
 
-      Eigen::Vector3f ray_screen(xpos,height-1-ypos,0); //screen coordinates
-      // cout << "Ray screen: \n" << ray_screen << endl;
-
-      Eigen::Vector4f ray_canonical((ray_screen[0]/width)*2-1,(ray_screen[1]/height)*2-1,0,1); //canonical view volume
-      // cout << "Ray canonical: \n" << ray_canonical << endl;
-
-      // projection is either the orthographic or perpsective projection matrix
-      Vector4f ray_projection = projection.inverse() * ray_canonical; //camera space
-      // cout << "Ray projection: \n" << ray_projection << endl;
-
-      Vector4f ray_world = view.inverse() * ray_projection; //world space
-      // cout << "Ray world: \n" << ray_world << endl;
-
-      Vector3f ray_origin(ray_world[0], ray_world[1], ray_world[2]);
-      // cout << "Ray origin: \n" << ray_origin << endl;
-
-      // selected = false;
-      int start = 0;
-      for(int t_idx = 0; t_idx < types.size(); t_idx++){
-        ObjectType type = types[t_idx];
-        switch(type){
-          case Unit:{
-            for(int s = start; s < start + 36; s+=3){
-              Vector3f coord1 = V.col(s);
-              Vector3f coord2 = V.col(s + 1);
-              Vector3f coord3 = V.col(s + 2);
-
-              Vector4f new_coord1(coord1[0], coord1[1], coord1[2], 1.);
-              Vector4f new_coord2(coord2[0], coord2[1], coord2[2], 1.);
-              Vector4f new_coord3(coord3[0], coord3[1], coord3[2], 1.);
-
-              new_coord1 = model.block(0, (t * 4), 4, 4) * new_coord1;
-              new_coord2 = model.block(0, (t * 4), 4, 4) * new_coord2;
-              new_coord3 = model.block(0, (t * 4), 4, 4) * new_coord3;
-
-              coord1 << new_coord1[0], new_coord1[1], new_coord1[2];
-              coord2 << new_coord2[0], new_coord2[1], new_coord2[2];
-              coord3 << new_coord3[0], new_coord3[1], new_coord3[2];
-              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
-              float u = solutions[0];
-              float v = solutions[1];
-              float t = solutions[2];
-              if(does_intersect(t, u, v)){
-                selectedPress = true;
-                selected_index = t_idx * 4;
-                selected_vertex_index = start;
-                cout << "UNIT CUBE Intersect!" << endl;
-                break;
-              }
-            }
-            start += 36;
-            break;
-          }
-          case Bunny:{
-            for(int s = start; s < start + 3000; s+=3){
-              Vector3f coord1 = V.col(s);
-              Vector3f coord2 = V.col(s + 1);
-              Vector3f coord3 = V.col(s + 2);
-
-              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
-              float u = solutions[0];
-              float v = solutions[1];
-              float t = solutions[2];
-              if(does_intersect(t, u, v)){
-                selectedPress = true;
-                selected_index = t_idx * 4;
-                selected_vertex_index = start;
-                cout << "BUNNY Intersect!" << endl;
-                break;
-              }
-            }
-            start += 3000;
-            break;
-          }
-          case Bumpy:{
-            for(int s = start; s < start + 3000; s+=3){
-              Vector3f coord1 = V.col(s);
-              Vector3f coord2 = V.col(s + 1);
-              Vector3f coord3 = V.col(s + 2);
-
-              vector<float> solutions = solver(coord1, coord2, coord3, ray_direction, ray_origin);
-              float u = solutions[0];
-              float v = solutions[1];
-              float t = solutions[2];
-              if(does_intersect(t, u, v)){
-                selectedPress = true;
-                selected_index = t_idx * 4;
-                selected_vertex_index = start;
-                cout << "BUMPY CUBE Intersect!" << endl;
-                break;
-              }
-            }
-            start += 3000;
-            break;
-          }
-        }
-        if(selected) break;
-      } // ObjectType for loop
+      if(selected_vertex_index > -1){
+        cout << "Clicked on object" << endl;
+      }else{
+        cout << "nah" << endl;
+      }
 
     }else if(action == GLFW_RELEASE && selectedPress){
       selected = true;
