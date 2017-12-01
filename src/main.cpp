@@ -78,6 +78,9 @@ Vector3f lightPos(1.0, 1.0, 0.0);
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
 
+
+Vector4f initBunnyOrtho;
+Vector4f initBunnyPer;
 //----------------------------------
 // VERTEX/TRANSFORMATION/INDEX DATA
 //----------------------------------
@@ -843,7 +846,8 @@ void addBunny()
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
   }
-
+  initBunnyOrtho << 0.0015583, -0.0102434,0.000170675, 1.;
+  initBunnyPer << 0.1,-0.65,-0.2,1.;
   if(ortho){
     model.block(0, 4*(numObjects-1), 4, 4)<<
         // 0.0914923,    0.,            0.,                0.0015583,
@@ -965,36 +969,114 @@ void addBumpy()
   VBO_C.update(C);
   VBO.update(V);
 }
+void rotateTriangle(int axis, float direction){
+  // translate back to origin
+  if(selected_vertex_index > -1){
+    direction = (PI/180) * direction;
+    MatrixXf rotation(4,4);
+    Vector4f translation;
+    if(select_type == Bunny){
+      if(ortho){
+        translation = initBunnyOrtho;
+      }else{
+        translation = initBunnyPer;
+      }
+    }else{
+      translation << 0.0, 0.0, 0.0, 1.0;
+    }
+    if(axis == 0){ //Z
+      rotation <<
+      cos(direction),      sin(direction),  0.,  0.,
+      -sin(direction),     cos(direction),  0.,  0.,
+      0.,                     0.,                 1.,  0.,
+      0.,                     0.,                 0.,  1.;
+    }else if(axis == 1){ //X
+      rotation <<
+      1.,    0.,                  0.,                 0.,
+      0.,    cos(direction),   sin(direction),  0.,
+      0.,    -sin(direction),  cos(direction),  0.,
+      0.,    0.,                  0.,                 1.;
+
+    }else if(axis == 2){ //Y
+      rotation <<
+        cos(direction),  0.,  -sin(direction),   0.,
+        0.,                 1.,  0.,                   0.,
+        sin(direction),  0.,  cos(direction),    0.,
+        0.,                 0.,  0.,                   1.;
+    }
+    model.block(0, selected_index, 4, 4).col(3) -= translation;
+    model.block(0, selected_index, 4, 4) = model.block(0, selected_index, 4, 4) * rotation;
+    model.block(0, selected_index, 4, 4).col(3) += translation;
+  }
+}
+void scaleTriangle(bool up){
+  float factor = .20;
+  Vector4f translated;
+  MatrixXf scaling(4,4);
+
+  if(selected_vertex_index > -1){
+
+    if(up){
+      factor += 1;
+      // if(select_type == Bunny){
+      //   if(ortho){
+      //     translated = initBunnyOrtho;
+      //   }else{
+      //     translated = initBunnyPer;
+      //   }
+      // }else{
+        translated << 0.0, 0.0, 0.0, 1.0;
+      // }
+      scaling <<
+      factor,    0.,       0.,                        0.,
+      0.,        factor,   0.,                        0.,
+      0.,        0.,       factor,                    0.,
+      0.,        0.,       0.,                        1.;
+
+      model.block(0, selected_index, 4, 4).col(3) -= translated;
+      model.block(0, selected_index, 4, 4) = model.block(0, selected_index, 4, 4) * scaling;
+      model.block(0, selected_index, 4, 4).col(3) += translated;
+    }else{
+      factor = 1-factor;
+      // if(select_type == Bunny){
+      //   if(ortho){
+      //     translated = initBunnyOrtho;
+      //   }else{
+      //     translated = initBunnyPer;
+      //   }
+      // }else{
+        translated << 0.0, 0.0, 0.0, 1.0;
+      // }
+      scaling <<
+      factor,    0.,       0.,                        0.,
+      0.,        factor,   0.,                        0.,
+      0.,        0.,       factor,                    0.,
+      0.,        0.,       0.,                        1.;
+
+      model.block(0, selected_index, 4, 4).col(3) -= translated;
+      model.block(0, selected_index, 4, 4) = model.block(0, selected_index, 4, 4) * scaling;
+      model.block(0, selected_index, 4, 4).col(3) += translated;
+    }
+
+  }
+
+}
 // Translates triangle based on mouse movement
-void translateTriangle()
+void translateTriangle(int direction)
 {
-  // Compare previousX and currentX, etc. and figure out translation
-  float x_difference;
-  float y_difference;
-  // cout << "Previous (x,y): " << previousX << "," << previousY << endl;
-  // cout << "Current (x,y): " << currentX << "," << currentY << endl;
+  if(selected_vertex_index > -1){
+    float translation_amount = 0.3;
+    if(ortho){
+      translation_amount /= ORTHO_FACTOR;
+    }
+    if(direction == 0){ // + x
+      model.block(0, selected_index, 4, 4)(0,3) += translation_amount;
+    }else if(direction == 1){ // -x
 
-  // cout << "Previous positions: " << previousX << " , " << previousY << endl;
-  // cout << "Current positions: " << currentX << " , " << currentY << endl;
-  if(currentX > previousX) // mouse moved right
-  {
-    x_difference = currentX - previousX;
-    translation(0,selected_index + 3) += x_difference;
-  }else{ // mouse moved left
-    x_difference = previousX - currentX;
-    translation(0, selected_index + 3) -= x_difference;
-  }
-  if(currentY > previousY) // mouse moved up
-  {
-    y_difference = currentY - previousY;
-    translation(1,selected_index + 3) += y_difference;
-  }else{ //mouse moved down
-    y_difference = previousY - currentY;
-    translation(1,selected_index + 3) -= y_difference;
-  }
+    }else if(direction == 2){
 
-  model.block(0, selected_index, 4,4) = translation.block(0, selected_index, 4, 4) * rotation.block(0, selected_index, 4, 4) * scaling.block(0, selected_index, 4, 4);
-  MVP.block(0, selected_index, 4, 4) = projection * view * model.block(0, selected_index, 4,4);
+    }
+  }
 }
 void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 {
@@ -1366,31 +1448,38 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         // OBJECT ROTATION
         case  GLFW_KEY_F:{
             cout << "Rotating 10 degrees along Z-axis " << endl;
+            rotateTriangle(0, 10.);
             break;
           }
         case  GLFW_KEY_G:{
             cout << "Rotating -10 degrees along Z-axis" << endl;
+            rotateTriangle(0, -10.);
             break;
           }
         case  GLFW_KEY_H:{
             cout << "Rotating 10 degrees along X-axis" << endl;
+            rotateTriangle(1, 10.);
             break;
           }
         case  GLFW_KEY_J:{
             cout << "Rotating -10 degrees along X-axis" << endl;
+            rotateTriangle(1, -10.);
             break;
           }
         case  GLFW_KEY_K:{
             cout << "Rotating 10 degrees along Y-axis" << endl;
+            rotateTriangle(2, 10.);
             break;
           }
         case  GLFW_KEY_L:{
             cout << "Rotating -10 degrees along Y-axis" << endl;
+            rotateTriangle(2, -10.);
             break;
           }
         // OBJECT TRANSLATION
         case  GLFW_KEY_W:{
             cout << "Moving object RIGHT " << endl;
+            translateTriangle(0);
             break;
           }
         case  GLFW_KEY_E:{
@@ -1416,10 +1505,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         // OBJECT SCALING
         case  GLFW_KEY_S:{
             cout << "Scaling UP" << endl;
+            scaleTriangle(true);
             break;
           }
         case  GLFW_KEY_D:{
             cout << "Scaling DOWN" << endl;
+            scaleTriangle(false);
             break;
           }
         // PROJECTION
