@@ -70,7 +70,7 @@ int selected_index = -1;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(2.0, 2.0, 1.0);
+Vector3f lightPos(1.0, 1.0, 1.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
@@ -92,14 +92,26 @@ Eigen::MatrixXf MVP(4,4); // dynamically resized per object
 //----------------------------------
 // OFF DATA
 //----------------------------------
-pair<MatrixXd, MatrixXd> bunny;
-pair<MatrixXd, MatrixXd> bumpy;
+pair<MatrixXf, MatrixXf> bunny;
+pair<MatrixXf, MatrixXf> bumpy;
+MatrixXf bunny_vertex_holder(3, 3000);
+MatrixXf bumpy_vertex_holder(3, 3000);
+MatrixXf unit_vertex_holder(3, 36);
 
+// HOLDS NORMAL DATA TO ADD TO N_faces/N_vertices WHEN ADDING OBJECTS
+MatrixXf unit_faces = MatrixXf::Zero(3,36);
+MatrixXf unit_vertices = MatrixXf::Zero(3,36);
+
+MatrixXf bunny_faces = MatrixXf::Zero(3,3000);
+MatrixXf bunny_vertices = MatrixXf::Zero(3,3000);
+
+MatrixXf bumpy_faces = MatrixXf::Zero(3,3000);
+MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
 float focal_length = 1.0;
-Vector3f eye(-2.0, -2.0, focal_length); //camera position/ eye position  //e
+Vector3f eye(1.0, 1.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
 
@@ -146,7 +158,7 @@ vector<float> split_line(string line, bool F)
   return data;
 }
 // Iterates through given OFF file and fills V & F matrices
-pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
+pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
 {
   // Load file
   string line;
@@ -160,8 +172,8 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   // Extract metadata into vars
   int vertices = data[0];
   int faces = data[1];
-  MatrixXd V = MatrixXd::Zero(vertices, 3);
-  MatrixXd F = MatrixXd::Zero(faces, 3);
+  MatrixXf V = MatrixXf::Zero(vertices, 3);
+  MatrixXf F = MatrixXf::Zero(faces, 3);
   vector<float> line_data;
 
   // Fill V & F matrices from file
@@ -195,7 +207,7 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   }
 
   // Construct pair and return
-  pair<MatrixXd, MatrixXd> matrices(V, F);
+  pair<MatrixXf, MatrixXf> matrices(V, F);
   return matrices;
 
 }
@@ -206,133 +218,127 @@ bool isInVector(vector<int> summed, int idx){
   return false;
 }
 // Iterates through the N buffer and adds in the normals
-void addNormals(ObjectType type, int start)
+// ONLY CALLED ONCE PER OBJECT TYPE AT INITIALIZATION
+void addNormals(ObjectType type)
 {
   switch(type){
     case Unit:{
       // go through faces
-      for(int i = start; i < start + 36; i+=3)
+      for(int i = 0; i < 36; i+=3)
       {
-        Vector3f edge1 = V.col(i + 1) - V.col(i);
-        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f edge1 = unit_vertex_holder.col(i + 1) - unit_vertex_holder.col(i);
+        Vector3f edge2 = unit_vertex_holder.col(i + 2) - unit_vertex_holder.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
-        N_faces.col(i) << normal;
-        N_faces.col(i + 1) << normal;
-        N_faces.col(i + 1) << normal;
-        N_vertices.col(i) += normal;
-        N_vertices.col(i + 1) += normal;
-        N_vertices.col(i + 2) += normal;
+        unit_faces.col(i) << normal;
+        unit_faces.col(i + 1) << normal;
+        unit_faces.col(i + 1) << normal;
+        unit_vertices.col(i) += normal;
+        unit_vertices.col(i + 1) += normal;
+        unit_vertices.col(i + 2) += normal;
       }
 
-      for(int i = start; i < start + 36; i++){
+      for(int i = 0; i <  36; i++){
         vector<int> summed;
-        Vector3f current = V.col(i);
-        Vector3f sum =  N_vertices.col(i);
+        Vector3f current = unit_vertex_holder.col(i);
+        Vector3f sum =  unit_vertices.col(i);
         summed.push_back(i);
-        for(int j = start; j < start + 36; j++){
+        for(int j = 0; j < 36; j++){
           if(isInVector(summed, j)) continue;
           if(i == j) continue;
-          Vector3f other = V.col(j);
+          Vector3f other = unit_vertex_holder.col(j);
           if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
-            sum += N_vertices.col(j);
+            sum += unit_vertices.col(j);
             summed.push_back(j);
           }
         }
         sum = sum.normalized();
         for(int k = 0; k < summed.size(); k++){
           int idx = summed[k];
-          N_vertices.col(idx) = sum;
+          unit_vertices.col(idx) = sum;
         }
       }
-
-      VBO_N_V.update(N_vertices);
-      VBO_N_F.update(N_faces);
       break;
     }
 
     case Bunny:{
-      // go through faces
-      for(int i = start; i < start + 3000; i+=3)
+
+      for(int i = 0; i < 3000; i+=3)
       {
-        Vector3f edge1 = V.col(i + 1) - V.col(i);
-        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f edge1 = bunny_vertex_holder.col(i + 1) - bunny_vertex_holder.col(i);
+        Vector3f edge2 = bunny_vertex_holder.col(i + 2) - bunny_vertex_holder.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
-        N_faces.col(i) << normal;
-        N_faces.col(i + 1) << normal;
-        N_faces.col(i + 1) << normal;
-        N_vertices.col(i) += normal;
-        N_vertices.col(i + 1) += normal;
-        N_vertices.col(i + 2) += normal;
+        bunny_faces.col(i) << normal;
+        bunny_faces.col(i + 1) << normal;
+        bunny_faces.col(i + 1) << normal;
+        bunny_vertices.col(i) += normal;
+        bunny_vertices.col(i + 1) += normal;
+        bunny_vertices.col(i + 2) += normal;
       }
 
-      for(int i = start; i < start + 3000; i++){
+      for(int i = 0; i < 3000; i++){
         vector<int> summed;
-        Vector3f current = V.col(i);
-        Vector3f sum =  N_vertices.col(i);
+        Vector3f current = bunny_vertex_holder.col(i);
+        Vector3f sum =  bunny_vertices.col(i);
         summed.push_back(i);
-        for(int j = start; j < start + 3000; j++){
+        for(int j = 0; j < 3000; j++){
           if(isInVector(summed, j)) continue;
           if(i == j) continue;
-          Vector3f other = V.col(j);
+          Vector3f other = bunny_vertex_holder.col(j);
           if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
-            sum += N_vertices.col(j);
+            sum += bunny_vertices.col(j);
             summed.push_back(j);
           }
         }
         sum = sum.normalized();
         for(int k = 0; k < summed.size(); k++){
           int idx = summed[k];
-          N_vertices.col(idx) = sum;
+          bunny_vertices.col(idx) = sum;
         }
       }
-      cout << N_vertices << endl;
+      // cout << N_vertices << endl;
 
       // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
-
-      VBO_N_V.update(N_vertices);
-      VBO_N_F.update(N_faces);
       break;
     }
 
-    case Bumpy:
+    case Bumpy:{
       // go through faces
-      for(int i = start; i < start + 3000; i+=3)
+      for(int i = 0; i < 3000; i+=3)
       {
-        Vector3f edge1 = V.col(i + 1) - V.col(i);
-        Vector3f edge2 = V.col(i + 2) - V.col(i);
+        Vector3f edge1 = bumpy_vertex_holder.col(i + 1) - bumpy_vertex_holder.col(i);
+        Vector3f edge2 = bumpy_vertex_holder.col(i + 2) - bumpy_vertex_holder.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
-        N_faces.col(i) << normal;
-        N_faces.col(i + 1) << normal;
-        N_faces.col(i + 1) << normal;
-        N_vertices.col(i) += normal;
-        N_vertices.col(i + 1) += normal;
-        N_vertices.col(i + 2) += normal;
+        bumpy_faces.col(i) << normal;
+        bumpy_faces.col(i + 1) << normal;
+        bumpy_faces.col(i + 1) << normal;
+        bumpy_vertices.col(i) += normal;
+        bumpy_vertices.col(i + 1) += normal;
+        bumpy_vertices.col(i + 2) += normal;
       }
 
-      for(int i = start; i < start + 3000; i++){
+      for(int i = 0; i < 3000; i++){
         vector<int> summed;
-        Vector3f current = V.col(i);
-        Vector3f sum =  N_vertices.col(i);
+        Vector3f current = bumpy_vertex_holder.col(i);
+        Vector3f sum =  bumpy_vertices.col(i);
         summed.push_back(i);
-        for(int j = start; j < start + 3000; j++){
+        for(int j = 0; j <  3000; j++){
           if(isInVector(summed, j)) continue;
           if(i == j) continue;
-          Vector3f other = V.col(j);
+          Vector3f other = bumpy_vertex_holder.col(j);
           if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
-            sum += N_vertices.col(j);
+            sum += bumpy_vertices.col(j);
             summed.push_back(j);
           }
         }
         sum = sum.normalized();
         for(int k = 0; k < summed.size(); k++){
           int idx = summed[k];
-          N_vertices.col(idx) = sum;
+          bumpy_vertices.col(idx) = sum;
         }
       }
-      cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
-      VBO_N_V.update(N_vertices);
-      VBO_N_F.update(N_faces);
+      // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
       break;
+    }
   }
 }
 void initialize(GLFWwindow* window)
@@ -383,6 +389,54 @@ void initialize(GLFWwindow* window)
     0.0,  0.0,  0.0,
    -0.0,  0.0,  0.0; //upper triangle
    VBO.update(V);
+
+   // BOTTOM
+   unit_vertex_holder.col(0) << 0.5f, -0.5f, 0.5f;
+   unit_vertex_holder.col( 1) <<   0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 2) <<   -0.5,-0.5, -0.5;
+   unit_vertex_holder.col( 3) << -0.5,-0.5, -0.5;
+   unit_vertex_holder.col( 4) <<  -0.5, -0.5, 0.5;
+   unit_vertex_holder.col( 5) <<  0.5, -0.5, 0.5;
+
+   // BACK
+   unit_vertex_holder.col( 6) << 0.5,  0.5, -0.5;
+   unit_vertex_holder.col( 7) <<  -0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 8) << 0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 9) << 0.5,  0.5, -0.5;
+   unit_vertex_holder.col( 10) << -0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 11) << -0.5,  0.5, -0.5;
+
+   // LEFT
+   unit_vertex_holder.col( 12) << -0.5,  0.5, -0.5;
+   unit_vertex_holder.col( 13) << -0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 14) << -0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 15) << -0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 16) <<  -0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 17) <<  -0.5, -0.5,  0.5;
+
+   // RIGHT
+   unit_vertex_holder.col( 18) << 0.5, -0.5,  0.5;
+   unit_vertex_holder.col( 19) << 0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 20) << 0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 21) << 0.5, -0.5, -0.5;
+   unit_vertex_holder.col( 22) << 0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 23) << 0.5,  0.5, -0.5;
+
+   // TOP
+   unit_vertex_holder.col( 24) << 0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 25) << 0.5,  0.5, -0.5;
+   unit_vertex_holder.col( 26) << -0.5, 0.5, 0.5;
+   unit_vertex_holder.col( 27) << -0.5, 0.5, -0.5;
+   unit_vertex_holder.col( 28) << 0.5,  0.5, -0.5;
+   unit_vertex_holder.col( 29) << -0.5, 0.5, 0.5;
+
+   // FRONT
+   unit_vertex_holder.col( 30) <<  -0.5, -0.5,  0.5;
+   unit_vertex_holder.col( 31) <<   0.5, -0.5,  0.5;
+   unit_vertex_holder.col( 32) <<   0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 33) <<  -0.5,  0.5,  0.5;
+   unit_vertex_holder.col( 34) <<   -0.5, -0.5,  0.5;
+   unit_vertex_holder.col( 35) <<  0.5,  0.5,  0.5;
 
   //------------------------------------------
   // PROJECTION MATRIX
@@ -523,10 +577,53 @@ void initialize(GLFWwindow* window)
   for(int i = 0; i < 36; i++){
     N_faces.col(i) << 0.0, 0.0, 0.0;
     N_vertices.col(i) << 0.0, 0.0, 0.0;
-
   }
-  ObjectType type = Unit;
-  addNormals(type, 0);
+
+  // Create data matrices from OFF files
+  MatrixXf V_bunny = bunny.first;
+  MatrixXf F_bunny = bunny.second;
+  for(int i = 0; i < F_bunny.rows(); i++)
+  {
+    for(int j = 0; j < F_bunny.cols(); j++)
+    {
+
+      vector<float> vertices;
+      int idx = F_bunny(i,j);
+      // take the row from idx and push the 3 points for 1 vertex
+      for(int x = 0; x < 3; x++){
+        vertices.push_back(V_bunny(idx,x));
+      }
+      bunny_vertex_holder.col((i*3) + j) << vertices[0], vertices[1], vertices[2];
+    }
+  }
+
+  MatrixXf V_bumpy = bumpy.first;
+  MatrixXf F_bumpy = bumpy.second;
+  for(int i = 0; i < F_bumpy.rows(); i++)
+  {
+    for(int j = 0; j < F_bumpy.cols(); j++)
+    {
+      vector<float> vertices;
+      int idx = F_bumpy(i,j);
+      // take the row from idx and push the 3 points for 1 vertex
+      for(int x = 0; x < 3; x++){
+        vertices.push_back(V_bumpy(idx,x));
+      }
+      bumpy_vertex_holder.col((i*3) + j) << vertices[0], vertices[1], vertices[2];
+    }
+  }
+
+  ObjectType t = Unit;
+  addNormals(t);
+  t = Bunny;
+  addNormals(t);
+  t = Bumpy;
+  addNormals(t);
+
+  N_vertices = unit_vertices;
+  N_faces = unit_faces;
+  VBO_N_F.update(N_faces);
+  VBO_N_F.update(N_vertices);
 
 }
 void addUnitCube()
@@ -621,16 +718,19 @@ void addUnitCube()
   V.col(start + 35) <<  0.5,  0.5,  0.5;
 
   // initialize C & N
+  int unit_idx = 0;
   for(int i = start; i < start + 36; i++){
-    N_vertices.col(i) << 0.0, 0.0, 0.0;
-    C.col(i) << 1.0, 1.0, 0.0;
+    N_vertices.col(i) << unit_vertices.col(unit_idx);
+    N_faces.col(i) << unit_faces.col(unit_idx);
+    unit_idx++;
+    C.col(i) << 1.0, 0.0, 0.0;
   }
-  // Calculate normals for triangle vertices & faces
-  addNormals(t, start);
 
   if(ortho){
     V.block(0, start, 3, 36) /= ORTHO_FACTOR;
   }
+  VBO_N_F.update(N_faces);
+  VBO_N_V.update(N_vertices);
   VBO_C.update(C);
   VBO.update(V);
 
@@ -642,10 +742,6 @@ void addBunny()
   types.push_back(t);
   RenderType r = Fill;
   renders.push_back(r);
-
-  // Create data matrices from OFF files
-  MatrixXd V_bunny = bunny.first;
-  MatrixXd F_bunny = bunny.second;
 
   // Hold onto start index
   int start = 0;
@@ -689,30 +785,27 @@ void addBunny()
 
   }
 
-  for(int i = 0; i < F_bunny.rows(); i++)
-  {
-    for(int j = 0; j < F_bunny.cols(); j++)
-    {
-
-      vector<float> vertices;
-      int idx = F_bunny(i,j);
-      // take the row from idx and push the 3 points for 1 vertex
-      for(int x = 0; x < 3; x++){
-        vertices.push_back(V_bunny(idx,x));
-      }
-      V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-      C.col(start + (i*3) + j) << 0.0, 0.0, 1.0; // green
-      N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-      N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-
-    }
-  }
   // cout << "C is now: \n" << C.block(0, 0, 3, 6) << endl;
-  addNormals(t, start);
+  int bunny_idx = 0;
+  for(int i = start; i < start + 3000; i++){
+    N_vertices.col(i) << bunny_vertices.col(bunny_idx);
+    N_faces.col(i) << bunny_faces.col(bunny_idx);
+    C.col(i) << 1.0, 1.0, 0.0;
+    V.col(i) << bunny_vertex_holder.col(bunny_idx);
+    bunny_idx++;
+  }
 
+  // for(int i = 0; i < 3000; i++){
+  //     N_vertices.col(start + i) << bunny_vertices.col(i);
+  //     N_faces.col(i) << bunny_faces.col(i);
+  //     // V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+  //     // C.col(start + (i*3) + j) << 0.0, 0.0, 1.0; // green
+  // }
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
+  VBO_N_F.update(N_faces);
+  VBO_N_V.update(N_vertices);
   VBO_C.update(C);
   VBO.update(V);
 
@@ -724,9 +817,6 @@ void addBumpy()
   RenderType r = Fill;
   renders.push_back(r);
 
-  // Create data matrices from OFF files
-  MatrixXd V_bumpy = bumpy.first;
-  MatrixXd F_bumpy = bumpy.second;
   // Hold onto start index
   int start = 0;
   if(numObjects > 1){
@@ -768,30 +858,41 @@ void addBumpy()
   // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
   // Iterate through columns of V and get 3 3D points to build 1 triangle
   // cout << "F_bumpy shape: " << F_bumpy.rows() << "," << F_bumpy.cols() << endl;
-  for(int i = 0; i < F_bumpy.rows(); i++)
-  {
-    for(int j = 0; j < F_bumpy.cols(); j++)
-    {
-      vector<float> vertices;
-      int idx = F_bumpy(i,j);
-      // take the row from idx and push the 3 points for 1 vertex
-      for(int x = 0; x < 3; x++){
-        vertices.push_back(V_bumpy(idx,x));
-      }
-      V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-      C.col(start + (i*3) + j) << 0.0, 1.0, 0.0;
-      N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-      N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-
-    }
+  // for(int i = 0; i < F_bumpy.rows(); i++)
+  // {
+  //   for(int j = 0; j < F_bumpy.cols(); j++)
+  //   {
+  //     vector<float> vertices;
+  //     int idx = F_bumpy(i,j);
+  //     // take the row from idx and push the 3 points for 1 vertex
+  //     for(int x = 0; x < 3; x++){
+  //       vertices.push_back(V_bumpy(idx,x));
+  //     }
+  //     V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
+  //     C.col(start + (i*3) + j) << 0.0, 1.0, 0.0;
+  //     N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+  //     N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
+  //
+  //   }
+  // }
+  int bumpy_idx = 0;
+  for(int i = start; i < start + 3000; i++){
+    N_vertices.col(i) << bumpy_vertices.col(bumpy_idx);
+    N_faces.col(i) << bumpy_faces.col(bumpy_idx);
+    C.col(i) << 1.0, 1.0, 0.0;
+    V.col(i) << bumpy_vertex_holder.col(bumpy_idx);
+    bumpy_idx++;
   }
-
-  addNormals(t, start);
+  // for(int i = 0; i < 3000; i++){
+  //     N_vertices.col(i) << bumpy_vertices.col(i);
+  //     N_faces.col(i) << bumpy_faces.col(i);
+  // }
 
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
-
+  VBO_N_F.update(N_faces);
+  VBO_N_V.update(N_vertices);
   VBO_C.update(C);
   VBO.update(V);
 }
@@ -935,11 +1036,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
-    // Create data matrices from OFF files
-    MatrixXd V_bumpy = bumpy.first;
-    MatrixXd F_bumpy = bumpy.second;
-    MatrixXd V_bunny = bunny.first;
-    MatrixXd F_bunny = bunny.second;
 
     double aspect = double(width)/double(height);
     // cout << "Width: " << width << endl; //640
@@ -1220,13 +1316,16 @@ int main(void)
 
     // cout << "INIT" << endl;
     // Initialize everything needed
-    initialize(window);
 
     //------------------------------------------
     // OFF DATA
     //------------------------------------------
     bunny = read_off_data("../data/bunny.off", true);
     bumpy = read_off_data("../data/bumpy_cube.off", false);
+
+
+    initialize(window);
+
     // V = bunny/bumpy.first - holds 3D coordinates
     // F = bunny/bumpy.second - holds indices of triangles
     // indices from F matrix into 3D coordinates from V
@@ -1308,9 +1407,9 @@ int main(void)
     program.bindVertexAttribArray("vertex_normal",VBO_N_V);
     program.bindVertexAttribArray("face_normal",VBO_N_F);
 
-    glUniform3f(program.uniform("lightPos"), 1.0, 1.0, 2.0);
+    glUniform3f(program.uniform("lightPos"), lightPos[0] ,lightPos[1], lightPos[2]);
     glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
-    // glUniform1i(program.uniform("flat"), GL_TRUE);
+    // glUniform1i(program.uniform("flat"), 1);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -1353,20 +1452,20 @@ int main(void)
               // glPolygonOffset(-2.0f, -2.0f);
               // glLineWidth(1.0f);
               glDrawArrays(GL_TRIANGLES, start, 36);
-
-              MatrixXf holder = MatrixXf::Zero(3,36);
-              for(int i = start; i < start + 36; i++){
-                holder.col(i) = C.col(i);
-                C.col(i) << 0.0, 0.0, 0.0;
-              }
-              VBO_C.update(C);
-
-              glDrawArrays(GL_LINE_LOOP, start, 36);
-
-              for(int i = start; i < start + 36; i++){
-                C.col(i) = holder.col(i);
-              }
-              VBO_C.update(C);
+              //
+              // MatrixXf holder = MatrixXf::Zero(3,36);
+              // for(int i = start; i < start + 36; i++){
+              //   holder.col(i) = C.col(i);
+              //   C.col(i) << 0.0, 0.0, 0.0;
+              // }
+              // VBO_C.update(C);
+              //
+              // glDrawArrays(GL_LINE_LOOP, start, 36);
+              //
+              // for(int i = start; i < start + 36; i++){
+              //   C.col(i) = holder.col(i);
+              // }
+              // VBO_C.update(C);
               start += 36;
               break;
             }
