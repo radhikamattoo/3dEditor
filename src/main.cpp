@@ -39,7 +39,7 @@ MatrixXf V(3,36);
 // Colors
 VertexBufferObject VBO_C;
 MatrixXf C(3,36);
-
+MatrixXf C_holder(3,3000);
 // Normals
 VertexBufferObject VBO_N_F;
 VertexBufferObject VBO_N_V;
@@ -261,14 +261,14 @@ void addNormals(ObjectType type)
         Vector3f edge1 = unit_vertex_holder.col(i + 1) - unit_vertex_holder.col(i);
         Vector3f edge2 = unit_vertex_holder.col(i + 2) - unit_vertex_holder.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
+
         unit_faces.col(i) << normal;
         unit_faces.col(i + 1) << normal;
-        unit_faces.col(i + 1) << normal;
+        unit_faces.col(i + 2) << normal;
         unit_vertices.col(i) += normal;
         unit_vertices.col(i + 1) += normal;
         unit_vertices.col(i + 2) += normal;
       }
-      cout << "Done going through UNIT faces, going thru vertices"<< endl;
       for(int i = 0; i <  36; i++){
         vector<int> summed;
         Vector3f current = unit_vertex_holder.col(i);
@@ -289,7 +289,6 @@ void addNormals(ObjectType type)
           unit_vertices.col(idx) = sum;
         }
       }
-      cout << "Done with Unit cube" << endl;
       break;
     }
 
@@ -302,12 +301,11 @@ void addNormals(ObjectType type)
         Vector3f normal = (edge1.cross(edge2)).normalized();
         bunny_faces.col(i) << normal;
         bunny_faces.col(i + 1) << normal;
-        bunny_faces.col(i + 1) << normal;
+        bunny_faces.col(i + 2) << normal;
         bunny_vertices.col(i) += normal;
         bunny_vertices.col(i + 1) += normal;
         bunny_vertices.col(i + 2) += normal;
       }
-      cout << "Done going through BUNNY faces, going thru vertices"<< endl;
       for(int i = 0; i < 3000; i++){
         vector<int> summed;
         Vector3f current = bunny_vertex_holder.col(i);
@@ -328,10 +326,6 @@ void addNormals(ObjectType type)
           bunny_vertices.col(idx) = sum;
         }
       }
-      cout << "Done with BUNNY" << endl;
-      // cout << N_vertices << endl;
-
-      // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
       break;
     }
 
@@ -344,7 +338,7 @@ void addNormals(ObjectType type)
         Vector3f normal = (edge1.cross(edge2)).normalized();
         bumpy_faces.col(i) << normal;
         bumpy_faces.col(i + 1) << normal;
-        bumpy_faces.col(i + 1) << normal;
+        bumpy_faces.col(i + 2) << normal;
         bumpy_vertices.col(i) += normal;
         bumpy_vertices.col(i + 1) += normal;
         bumpy_vertices.col(i + 2) += normal;
@@ -867,9 +861,9 @@ void addBunny()
     // 0.,         0.,            8.22766,                               -0.2,
     // 0.109091,         -0.717025,            0.0119573,                1.;
 
-    1,    0.,            0.,                                    0.1,
-      0.,         1,       0.,                                    -0.65,
-      0.,         0.,            1,                               -0.2,
+    1,    0.,            0.,                                    0.109091,
+      0.,         1,       0.,                                    -0.717025,
+      0.,         0.,            1,                               0.0119573,
       0.,         0.,            0.,                1.;
   }
 
@@ -1009,6 +1003,7 @@ void rotateTriangle(int axis, float direction){
     model.block(0, selected_index, 4, 4).col(3) += translation;
   }
 }
+
 void scaleTriangle(bool up){
   float factor = .20;
   Vector4f translated;
@@ -1072,9 +1067,15 @@ void translateTriangle(int direction)
     if(direction == 0){ // + x
       model.block(0, selected_index, 4, 4)(0,3) += translation_amount;
     }else if(direction == 1){ // -x
-
-    }else if(direction == 2){
-
+      model.block(0, selected_index, 4, 4)(0,3) -= translation_amount;
+    }else if(direction == 2){ //up
+      model.block(0, selected_index, 4, 4)(1,3) += translation_amount;
+    }else if(direction == 3){ //down
+      model.block(0, selected_index, 4, 4)(1,3) -= translation_amount;
+    }else if(direction == 4){ //in
+      model.block(0, selected_index, 4, 4)(2,3) += translation_amount;
+    }else if(direction == 5){ //out
+      model.block(0, selected_index, 4, 4)(2,3) -= translation_amount;
     }
   }
 }
@@ -1106,7 +1107,51 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
   }
 
 }
+void changeView(int direction)
+{
+  float factor = 0.1;
+  if(ortho){
+    factor /= ORTHO_FACTOR;
+  }
+  if(direction == 0){
+    eye[0] += factor;
+  }else if(direction == 1){
+    eye[0] -= factor;
+  }else if(direction == 2){
+    eye[1] += factor;
+  }else if(direction == 3){
+    eye[1] -= factor;
+  }else if(direction == 4){
+    eye[2] += factor;
+  }else if(direction == 5){
+    eye[2] -= factor;
+  }
+  Vector3f w = (eye - look_at).normalized();
+  Vector3f u = (up_vec.cross(w).normalized());
+  Vector3f v = w.cross(u);
 
+  Matrix4f look;
+  look <<
+  u[0], u[1], u[2], 0.,
+  v[0], v[1], v[2], 0.,
+  w[0], w[1], w[2], 0.,
+  0.,   0.,    0.,  0.5;
+
+  Matrix4f at;
+  at <<
+  0.5, 0.0, 0.0, -eye[0],
+  0.0, 0.5, 0.0, -eye[1],
+  0.0, 0.0, 0.5, -eye[2],
+  0.0, 0.0, 0.0, 0.5;
+
+  view = look * at;
+
+}
+void deleteObject()
+{
+
+
+}
 // Solve for x, given Ax = b
 vector<float> solver(Vector3f &a_coord, Vector3f &b_coord, Vector3f &c_coord, Vector3f &ray_direction, Vector3f &ray_origin)
 {
@@ -1221,7 +1266,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
              double depth = max(az, max(bz, cz));
              if (depth > triangle_depth) {
                  cout << "SELECTED UNIT CUBE" << endl;
-                 selected_index = type; //index in types of selected object
+                 selected_index = type *4; //index in types of selected object
                  select_type = types[type];
                  selected_vertex_index = start_idx;
                  // deletion_end_index =  end_index;
@@ -1266,7 +1311,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
              double depth = max(az, max(bz, cz));
              if (depth > triangle_depth) {
                  cout << "SELECTED BUNNY" << endl;
-                 selected_index = type; //index in types of selected object
+                 selected_index = type*4; //index in types of selected object
                  select_type = types[type];
                  selected_vertex_index = start_idx;
                  // deletion_end_index =  end_index;
@@ -1310,7 +1355,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
              double depth = max(az, max(bz, cz));
              if (depth > triangle_depth) {
                  cout << "Selected BUMPY CUBE" << endl;
-                 selected_index = type; //index in types of selected object
+                 selected_index = type*4; //index in types of selected object
                  select_type = types[type];
                  selected_vertex_index = start_idx;
                  // deletion_end_index =  end_index;
@@ -1353,15 +1398,75 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         x_world = p_world[0] * 0.5 * 1.91632;
         y_world = p_world[1] * 0.5 * 1.91632;
       }
+      int previousIdx = selected_vertex_index;
+      ObjectType previousType = select_type;
+      cout << "Previous selected type was: " << select_type << endl;
       pair<int, int> result = wasSelected(x_world, y_world);
+      cout << "Newly selected type: " << select_type << endl;
 
       selected_vertex_index = result.first;
       selected_index = result.second;
 
       if(selected_vertex_index > -1){
-        cout << "Clicked on object" << endl;
+        // change the color and update
+        switch(select_type){
+          case Unit:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 36; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+          case Bunny:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+          case Bumpy:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+        }
       }else{
-        cout << "nah" << endl;
+        if(previousIdx > -1){
+          switch(previousType){
+            case Unit:{
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 36; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bunny:{
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bumpy:{
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+          }
+        }
       }
 
     }else if(action == GLFW_RELEASE && selectedPress){
@@ -1423,26 +1528,32 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         // CAMERA TRANSLATION
         case  GLFW_KEY_7:{
             cout << "Moving camera LEFT" << endl;
+            changeView(0);
             break;
         }
         case  GLFW_KEY_8:{
             cout << "Moving camera RIGHT" << endl;
+            changeView(1);
             break;
         }
         case  GLFW_KEY_9:{
             cout << "Moving camera UP" << endl;
+            changeView(2);
             break;
           }
         case  GLFW_KEY_0:{
             cout << "Moving camera DOWN" << endl;
+            changeView(3);
             break;
           }
         case GLFW_KEY_MINUS:{
           cout << "Moving camera IN" << endl;
+          changeView(4);
           break;
         }
         case GLFW_KEY_EQUAL:{
           cout << "Moving camera OUT" << endl;
+          changeView(5);
           break;
         }
         // OBJECT ROTATION
@@ -1484,22 +1595,27 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
           }
         case  GLFW_KEY_E:{
             cout << "Movign object LEFT" << endl;
+            translateTriangle(1);
             break;
           }
         case  GLFW_KEY_R:{
             cout << "Moving object UP" << endl;
+            translateTriangle(2);
             break;
           }
         case  GLFW_KEY_T:{
             cout << "Moving object DOWN" << endl;
+            translateTriangle(3);
             break;
           }
         case  GLFW_KEY_Y:{
             cout << "Moving object IN" << endl;
+            translateTriangle(4);
             break;
           }
         case  GLFW_KEY_U:{
             cout << "Moving object OUT" << endl;
+            translateTriangle(5);
             break;
           }
         // OBJECT SCALING
@@ -1513,6 +1629,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             scaleTriangle(false);
             break;
           }
+      // PROJECTION
+      case  GLFW_KEY_C:{
+          cout << "DELETING object" << endl;
+          deleteObject();
+          break;
+        }
         // PROJECTION
         case  GLFW_KEY_O:{
             cout << "Orthographic Projection" << endl;
