@@ -757,7 +757,6 @@ void addBunny()
     translation.conservativeResize(4, 4 * numObjects);
     rotation.conservativeResize(4, 4 * numObjects);
     scaling.conservativeResize(4, 4 * numObjects);
-
     translation.block(0, 4 * (numObjects-1), 4, 4) <<
     1., 0., 0., 0.,
     0., 1., 0., 0.,
@@ -777,37 +776,30 @@ void addBunny()
     model.block(0, 4 * (numObjects-1), 4, 4) = translation.block(0, 4 * (numObjects-1), 4, 4) * rotation.block(0, 4 * (numObjects-1), 4, 4) * scaling.block(0, 4 * (numObjects-1), 4, 4);
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }else{
-
     V.conservativeResize(3, 3000);
     N_faces.conservativeResize(3, 3000);
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
-
   }
 
-  // cout << "C is now: \n" << C.block(0, 0, 3, 6) << endl;
   int bunny_idx = 0;
   for(int i = start; i < start + 3000; i++){
     N_vertices.col(i) << bunny_vertices.col(bunny_idx);
     N_faces.col(i) << bunny_faces.col(bunny_idx);
-    C.col(i) << 1.0, 1.0, 0.0;
+    C.col(i) << 0.0, 0.0, 1.0;
     V.col(i) << bunny_vertex_holder.col(bunny_idx);
     bunny_idx++;
   }
 
-  // for(int i = 0; i < 3000; i++){
-  //     N_vertices.col(start + i) << bunny_vertices.col(i);
-  //     N_faces.col(i) << bunny_faces.col(i);
-  //     // V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-  //     // C.col(start + (i*3) + j) << 0.0, 0.0, 1.0; // green
-  // }
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
+
   VBO_N_F.update(N_faces);
   VBO_N_V.update(N_vertices);
   VBO_C.update(C);
   VBO.update(V);
+
 
 }
 void addBumpy()
@@ -824,7 +816,7 @@ void addBumpy()
     V.conservativeResize(3, V.cols() + 3000);
     N_faces.conservativeResize(3, N_faces.cols() + 3000);
     N_vertices.conservativeResize(3, N_vertices.cols() + 3000);
-    C.conservativeResize(3, V.cols() + 3000);
+    C.conservativeResize(3, C.cols() + 3000);
     model.conservativeResize(4, 4 * numObjects);
     MVP.conservativeResize(4, 4 * numObjects);
     translation.conservativeResize(4, 4 * numObjects);
@@ -855,39 +847,15 @@ void addBumpy()
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
   }
-  // cout << "New shape of V: " << V.rows() << "," << V.cols() << endl;
-  // Iterate through columns of V and get 3 3D points to build 1 triangle
-  // cout << "F_bumpy shape: " << F_bumpy.rows() << "," << F_bumpy.cols() << endl;
-  // for(int i = 0; i < F_bumpy.rows(); i++)
-  // {
-  //   for(int j = 0; j < F_bumpy.cols(); j++)
-  //   {
-  //     vector<float> vertices;
-  //     int idx = F_bumpy(i,j);
-  //     // take the row from idx and push the 3 points for 1 vertex
-  //     for(int x = 0; x < 3; x++){
-  //       vertices.push_back(V_bumpy(idx,x));
-  //     }
-  //     V.col(start + (i*3) + j) << vertices[0], vertices[1], vertices[2];
-  //     C.col(start + (i*3) + j) << 0.0, 1.0, 0.0;
-  //     N_vertices.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-  //     N_faces.col(start + (i*3) + j) << 0.0, 0.0, 0.0;
-  //
-  //   }
-  // }
+
   int bumpy_idx = 0;
   for(int i = start; i < start + 3000; i++){
     N_vertices.col(i) << bumpy_vertices.col(bumpy_idx);
     N_faces.col(i) << bumpy_faces.col(bumpy_idx);
-    C.col(i) << 1.0, 1.0, 0.0;
+    C.col(i) << 0.0, 1.0, 0.0;
     V.col(i) << bumpy_vertex_holder.col(bumpy_idx);
     bumpy_idx++;
   }
-  // for(int i = 0; i < 3000; i++){
-  //     N_vertices.col(i) << bumpy_vertices.col(i);
-  //     N_faces.col(i) << bumpy_faces.col(i);
-  // }
-
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
   }
@@ -1314,7 +1282,6 @@ int main(void)
     VAO.init();
     VAO.bind();
 
-    // cout << "INIT" << endl;
     // Initialize everything needed
 
     //------------------------------------------
@@ -1323,7 +1290,7 @@ int main(void)
     bunny = read_off_data("../data/bunny.off", true);
     bumpy = read_off_data("../data/bumpy_cube.off", false);
 
-
+    cout << "Initializing...\n" << endl;
     initialize(window);
 
     // V = bunny/bumpy.first - holds 3D coordinates
@@ -1474,18 +1441,21 @@ int main(void)
               glDrawArrays(GL_TRIANGLES, start, 3000);
 
               MatrixXf holder = MatrixXf::Zero(3,3000);
+              int holder_idx = 0;
               for(int i = start; i < start + 3000; i++){
-                holder.col(i) = C.col(i);
+                holder.col(holder_idx) = C.col(i);
                 C.col(i) << 0.0, 0.0, 0.0;
+                holder_idx++;
               }
               VBO_C.update(C);
 
               for(int i = start; i < start + 3000; i+=3){
                 glDrawArrays(GL_LINE_LOOP, i, 3);
               }
-
+              holder_idx = 0;
               for(int i = start; i < start + 3000; i++){
-                C.col(i) = holder.col(i);
+                C.col(i) = holder.col(holder_idx);
+                holder_idx++;
               }
               VBO_C.update(C);
               start += 3000;
@@ -1497,18 +1467,21 @@ int main(void)
               glDrawArrays(GL_TRIANGLES, start, 3000);
 
               MatrixXf holder = MatrixXf::Zero(3,3000);
+              int holder_idx = 0;
               for(int i = start; i < start + 3000; i++){
-                holder.col(i) = C.col(i);
+                holder.col(holder_idx) = C.col(i);
                 C.col(i) << 0.0, 0.0, 0.0;
+                holder_idx++;
               }
               VBO_C.update(C);
 
               for(int i = start; i < start + 3000; i+=3){
                 glDrawArrays(GL_LINE_LOOP, i, 3);
               }
-
+              holder_idx = 0;
               for(int i = start; i < start + 3000; i++){
-                C.col(i) = holder.col(i);
+                C.col(i) = holder.col(holder_idx);
+                holder_idx++;
               }
               VBO_C.update(C);
               start += 3000;
