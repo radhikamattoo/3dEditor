@@ -224,19 +224,19 @@ void changeRendering(RenderType type){
   int idx = selected_index/4;
   if(selected_index > -1){
     switch(type){
+      case Fill:{
+        renders[idx] = type;
+      }
       case Wireframe:{
-        RenderType t = Wireframe;
-        renders[idx] = t;
+        renders[idx] = type;
         break;
       }
       case Flat:{
-        RenderType t = Flat;
-        renders[idx] = t;
+        renders[idx] = type;
         break;
       }
       case Phong:{
-        RenderType t = Phong;
-        renders[idx] = t;
+        renders[idx] = type;
         break;
       }
     }
@@ -1190,6 +1190,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             changeRendering(t);
             break;
         }
+        case  GLFW_KEY_X:{
+            cout << "Fill " << endl;
+            RenderType t = Fill;
+            changeRendering(t);
+            break;
+        }
         // CAMERA TRANSLATION
         case  GLFW_KEY_7:{
             cout << "Moving camera LEFT" << endl;
@@ -1374,7 +1380,7 @@ int main(void)
                     "in vec3 vertex_normal;"
                     "in vec3 face_normal;"
                     // MVP
-                    // "uniform boolean flat;"
+                    "uniform bool is_flat;"
                     "uniform mat4 model;"
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
@@ -1386,11 +1392,11 @@ int main(void)
                     "{"
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
-                    // "    if(flat){"
-                    // "       Normal = mat3(transpose(inverse(model))) * face_normal;"
-                    // "    }else{"
+                    "    if(is_flat){"
+                    "       Normal = mat3(transpose(inverse(model))) * face_normal;"
+                    "    }else{"
                     "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
-                    // "    }"
+                    "    }"
                     "    objectColor = color;"
                     "}";
     const GLchar* fragment_shader =
@@ -1401,7 +1407,7 @@ int main(void)
                     "out vec4 outColor;"
                     "uniform vec3 lightPos;"
                     "uniform vec3 viewPos;"
-                    // "uniform bool flat;"
+                    "uniform bool is_flat;"
                     "void main()"
                     "{"
                     "    vec3 lightColor = vec3(1.0, 1.0, 1.0);"
@@ -1414,16 +1420,19 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
-                  // "      vec3 result = (ambient + diffuse) * objectColor;"
-
-                        // Specular
-                  "      float specularStrength = 0.5f;"
-                  "      vec3 viewDir = normalize(viewPos - FragPos);"
-                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
-                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
-                  "      vec3 specular = specularStrength * spec * lightColor;  "
-                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
-                  "      outColor = vec4(result, 1.0);"
+                  "      if(is_flat){"
+                  "         vec3 result = (ambient + diffuse) * objectColor;"
+                  "         outColor = vec4(result, 1.0);"
+                  "       }else{"
+                            // Specular
+                  "         float specularStrength = 0.5f;"
+                  "         vec3 viewDir = normalize(viewPos - FragPos);"
+                  "         vec3 reflectDir = reflect(-lightDir, norm);  "
+                  "         float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  "         vec3 specular = specularStrength * spec * lightColor;  "
+                  "         vec3 result = (ambient + diffuse + specular) * objectColor;"
+                  "         outColor = vec4(result, 1.0);"
+                  "     }"
                     "}";
 
     // Compile the two shaders and upload the binary to the GPU
@@ -1442,7 +1451,7 @@ int main(void)
 
     glUniform3f(program.uniform("lightPos"), lightPos[0] ,lightPos[1], lightPos[2]);
     glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
-    // glUniform1i(program.uniform("flat"), 1);
+    glUniform1i(program.uniform("is_flat"), true);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -1456,7 +1465,6 @@ int main(void)
     // Register the mouse movement callback
     glfwSetCursorPosCallback(window, cursor_pos_callback);
 
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
@@ -1475,7 +1483,6 @@ int main(void)
         int start = 0;
         for(int i = 0; i < types.size(); i++){
           ObjectType t = types[i];
-
           switch(t){
             case Unit:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
@@ -1492,6 +1499,7 @@ int main(void)
 
                 }
                 case Flat:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                   MatrixXf holder = MatrixXf::Zero(3,36);
                   int idx = 0;
@@ -1511,6 +1519,7 @@ int main(void)
                   VBO_C.update(C);
                 }
                 case Phong:{
+                  glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                 }
               }
@@ -1524,6 +1533,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   break;
                 }
@@ -1548,6 +1558,7 @@ int main(void)
                   break;
                 }
                 case Flat:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
 
                   MatrixXf holder = MatrixXf::Zero(3,3000);
@@ -1571,6 +1582,7 @@ int main(void)
                   break;
                 }
                 case Phong:{
+                  glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                 }
               }
@@ -1608,6 +1620,7 @@ int main(void)
                   break;
                 }
                 case Flat:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
 
                   MatrixXf holder = MatrixXf::Zero(3,3000);
@@ -1631,6 +1644,7 @@ int main(void)
                   break;
                 }
                 case Phong:{
+                  glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                 }
               }
