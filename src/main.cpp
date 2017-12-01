@@ -98,7 +98,7 @@ pair<MatrixXd, MatrixXd> bumpy;
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
-float focal_length = 2.0;
+float focal_length = 1.0;
 Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
@@ -199,12 +199,18 @@ pair<MatrixXd, MatrixXd> read_off_data(string filename, bool enlarge)
   return matrices;
 
 }
-
+bool isInVector(vector<int> summed, int idx){
+  for(int i = 0; i < summed.size(); i++){
+    if(idx == summed[i]) return true;
+  }
+  return false;
+}
 // Iterates through the N buffer and adds in the normals
 void addNormals(ObjectType type, int start)
 {
   switch(type){
-    case Unit:
+    case Unit:{
+      // go through faces
       for(int i = start; i < start + 36; i+=3)
       {
         Vector3f edge1 = V.col(i + 1) - V.col(i);
@@ -216,16 +222,36 @@ void addNormals(ObjectType type, int start)
         N_vertices.col(i) += normal;
         N_vertices.col(i + 1) += normal;
         N_vertices.col(i + 2) += normal;
-        // idx++;
       }
-      for(int i = start; i < start + 36; i++)
-      {
-        N_vertices.col(i) = N_vertices.col(i).normalized();
+
+      for(int i = start; i < start + 36; i++){
+        vector<int> summed;
+        Vector3f current = V.col(i);
+        Vector3f sum =  N_vertices.col(i);
+        summed.push_back(i);
+        for(int j = start; j < start + 36; j++){
+          if(isInVector(summed, j)) continue;
+          if(i == j) continue;
+          Vector3f other = V.col(j);
+          if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
+            sum += N_vertices.col(j);
+            summed.push_back(j);
+          }
+        }
+        sum = sum.normalized();
+        for(int k = 0; k < summed.size(); k++){
+          int idx = summed[k];
+          N_vertices.col(idx) = sum;
+        }
       }
+      cout << N_vertices << endl;
+
       VBO_N_V.update(N_vertices);
       VBO_N_F.update(N_faces);
       break;
-    case Bunny:
+    }
+
+    case Bunny:{
       // go through faces
       for(int i = start; i < start + 3000; i+=3)
       {
@@ -239,15 +265,36 @@ void addNormals(ObjectType type, int start)
         N_vertices.col(i + 1) += normal;
         N_vertices.col(i + 2) += normal;
       }
-      for(int i = start; i < start + 3000; i++)
-      {
-        N_vertices.col(i) = N_vertices.col(i).normalized();
+
+      for(int i = start; i < start + 3000; i++){
+        vector<int> summed;
+        Vector3f current = V.col(i);
+        Vector3f sum =  N_vertices.col(i);
+        summed.push_back(i);
+        for(int j = start; j < start + 3000; j++){
+          if(isInVector(summed, j)) continue;
+          if(i == j) continue;
+          Vector3f other = V.col(j);
+          if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
+            sum += N_vertices.col(j);
+            summed.push_back(j);
+          }
+        }
+        sum = sum.normalized();
+        for(int k = 0; k < summed.size(); k++){
+          int idx = summed[k];
+          N_vertices.col(idx) = sum;
+        }
       }
-      cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
+      cout << N_vertices << endl;
+
+      // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
 
       VBO_N_V.update(N_vertices);
       VBO_N_F.update(N_faces);
       break;
+    }
+
     case Bumpy:
       // go through faces
       for(int i = start; i < start + 3000; i+=3)
@@ -255,19 +302,33 @@ void addNormals(ObjectType type, int start)
         Vector3f edge1 = V.col(i + 1) - V.col(i);
         Vector3f edge2 = V.col(i + 2) - V.col(i);
         Vector3f normal = (edge1.cross(edge2)).normalized();
-
         N_faces.col(i) << normal;
         N_faces.col(i + 1) << normal;
         N_faces.col(i + 1) << normal;
         N_vertices.col(i) += normal;
         N_vertices.col(i + 1) += normal;
         N_vertices.col(i + 2) += normal;
-
       }
-      for(int i = start; i < start + 3000; i++)
-      {
-        N_vertices.col(i) = N_vertices.col(i).normalized();
-        // cout << "Normalized: \n" << N_vertices.col(i) << endl;
+
+      for(int i = start; i < start + 3000; i++){
+        vector<int> summed;
+        Vector3f current = V.col(i);
+        Vector3f sum =  N_vertices.col(i);
+        summed.push_back(i);
+        for(int j = start; j < start + 3000; j++){
+          if(isInVector(summed, j)) continue;
+          if(i == j) continue;
+          Vector3f other = V.col(j);
+          if(other[0] == current[0] && other[1] == current[1] && other[2] == current[2]){
+            sum += N_vertices.col(j);
+            summed.push_back(j);
+          }
+        }
+        sum = sum.normalized();
+        for(int k = 0; k < summed.size(); k++){
+          int idx = summed[k];
+          N_vertices.col(idx) = sum;
+        }
       }
       cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
       VBO_N_V.update(N_vertices);
@@ -460,6 +521,11 @@ void initialize(GLFWwindow* window)
   //------------------------------------------
   // NORMALS
   //------------------------------------------
+  for(int i = 0; i < 36; i++){
+    N_faces.col(i) << 0.0, 0.0, 0.0;
+    N_vertices.col(i) << 0.0, 0.0, 0.0;
+
+  }
   ObjectType type = Unit;
   addNormals(type, 0);
 
@@ -558,7 +624,7 @@ void addUnitCube()
   // initialize C & N
   for(int i = start; i < start + 36; i++){
     N_vertices.col(i) << 0.0, 0.0, 0.0;
-    C.col(i) << 1.0, 0.0, 0.0;
+    C.col(i) << 1.0, 1.0, 0.0;
   }
   // Calculate normals for triangle vertices & faces
   addNormals(t, start);
@@ -642,7 +708,7 @@ void addBunny()
 
     }
   }
-  cout << "C is now: \n" << C.block(0, 0, 3, 6) << endl;
+  // cout << "C is now: \n" << C.block(0, 0, 3, 6) << endl;
   addNormals(t, start);
 
   if(ortho){
@@ -1190,9 +1256,9 @@ int main(void)
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
                     // "    if(flat){"
-                    "       Normal = mat3(transpose(inverse(model))) * face_normal;"
+                    // "       Normal = mat3(transpose(inverse(model))) * face_normal;"
                     // "    }else{"
-                    // "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
                     // "    }"
                     "    objectColor = color;"
                     "}";
@@ -1217,15 +1283,15 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
-                  "      vec3 result = (ambient + diffuse) * objectColor;"
+                  // "      vec3 result = (ambient + diffuse) * objectColor;"
 
-                  //       // Specular
-                  // "      float specularStrength = 0.5f;"
-                  // "      vec3 viewDir = normalize(viewPos - FragPos);"
-                  // "      vec3 reflectDir = reflect(-lightDir, norm);  "
-                  // "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
-                  // "      vec3 specular = specularStrength * spec * lightColor;  "
-                  // "      vec3 result = (ambient + diffuse + specular) * objectColor;"
+                        // Specular
+                  "      float specularStrength = 0.5f;"
+                  "      vec3 viewDir = normalize(viewPos - FragPos);"
+                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
+                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  "      vec3 specular = specularStrength * spec * lightColor;  "
+                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
                   "      outColor = vec4(result, 1.0);"
                     "}";
 
@@ -1272,33 +1338,66 @@ int main(void)
       glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
+      glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.data());
+      glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.data());
       if(numObjects > 0){
         int start = 0;
         for(int i = 0; i < types.size(); i++){
           ObjectType t = types[i];
 
           switch(t){
-            case Unit:
+            case Unit:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
-              glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
-              glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
+              // glDrawArrays(GL_TRIANGLES, start, 36);
+              // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+              // glEnable(GL_POLYGON_OFFSET_LINE);
+              // glPolygonOffset(-2.0f, -2.0f);
+              // glLineWidth(1.0f);
               glDrawArrays(GL_TRIANGLES, start, 36);
+
+              // MatrixXf holder = MatrixXf::Zero(3,36);
+              // for(int i = start; i < start + 36; i++){
+              //   holder.col(i) = C.col(i);
+              //   C.col(i) << 0.0, 0.0, 0.0;
+              // }
+              // VBO_C.update(C);
+              //
+              // glDrawArrays(GL_LINE_LOOP, start, 36);
+              //
+              // for(int i = start; i < start + 36; i++){
+              //   C.col(i) = holder.col(i);
+              // }
+              // VBO_C.update(C);
               start += 36;
               break;
-            case Bunny:
-                glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
-                glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
-                glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
-                glDrawArrays(GL_TRIANGLES, start, 3000);
+            }
+            case Bunny:{
+              glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
+              glDrawArrays(GL_TRIANGLES, start, 3000);
+
+              // MatrixXf holder = MatrixXf::Zero(3,3000);
+              // for(int i = start; i < start + 3000; i++){
+              //   holder.col(i) = C.col(i);
+              //   C.col(i) << 0.0, 0.0, 0.0;
+              // }
+              // VBO_C.update(C);
+              //
+              // glDrawArrays(GL_LINE_LOOP, start, 3000);
+              //
+              // for(int i = start; i < start + 3000; i++){
+              //   C.col(i) = holder.col(i);
+              // }
+              // VBO_C.update(C);
               start += 3000;
               break;
-            case Bumpy:
+            }
+            case Bumpy:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
-              glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, view.block(0, (i * 4), 4, 4).data());
-              glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, projection.block(0, (i * 4), 4, 4).data());
+
               glDrawArrays(GL_TRIANGLES, start, 3000);
               start += 3000;
               break;
+            }
           }
         }
       }
