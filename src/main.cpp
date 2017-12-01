@@ -43,6 +43,7 @@ MatrixXf C(3,36);
 // Normals
 VertexBufferObject VBO_N_F;
 VertexBufferObject VBO_N_V;
+VertexBufferObject VBO_N;
 MatrixXf N_faces(3,36); //per triangle normal
 MatrixXf N_vertices(3,36); //per vertex normal
 vector<int> rendering;
@@ -67,6 +68,7 @@ double currentX, currentY, previousX, previousY;
 // Is an object selected?
 bool selected = false;
 int selected_index = -1;
+int selected_vertex_index = -1;
 bool selectedPress = false;
 
 // Light position
@@ -111,7 +113,7 @@ MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
 // VIEW MATRIX PARAMETERS
 //----------------------------------
 float focal_length = 1.0;
-Vector3f eye(1.0, 1.0, focal_length); //camera position/ eye position  //e
+Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
 
@@ -216,6 +218,29 @@ bool isInVector(vector<int> summed, int idx){
     if(idx == summed[i]) return true;
   }
   return false;
+}
+
+void changeRendering(RenderType type){
+  int idx = selected_index/4;
+  if(selected_index > -1){
+    switch(type){
+      case Wireframe:{
+        RenderType t = Wireframe;
+        renders[idx] = t;
+        break;
+      }
+      case Flat:{
+        RenderType t = Flat;
+        renders[idx] = t;
+        break;
+      }
+      case Phong:{
+        RenderType t = Phong;
+        renders[idx] = t;
+        break;
+      }
+    }
+  }
 }
 // Iterates through the N buffer and adds in the normals
 // ONLY CALLED ONCE PER OBJECT TYPE AT INITIALIZATION
@@ -623,7 +648,7 @@ void initialize(GLFWwindow* window)
   N_vertices = unit_vertices;
   N_faces = unit_faces;
   VBO_N_F.update(N_faces);
-  VBO_N_F.update(N_vertices);
+  VBO_N_V.update(N_vertices);
 
 }
 void addUnitCube()
@@ -1037,7 +1062,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
       for(int t_idx = 0; t_idx < types.size(); t_idx++){
         ObjectType type = types[t_idx];
         switch(type){
-          case Unit:
+          case Unit:{
             for(int s = start; s < start + 36; s+=3){
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
@@ -1061,13 +1086,15 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               if(does_intersect(t, u, v)){
                 selectedPress = true;
                 selected_index = t_idx * 4;
+                selected_vertex_index = start;
                 cout << "UNIT CUBE Intersect!" << endl;
                 break;
               }
             }
             start += 36;
             break;
-          case Bunny:
+          }
+          case Bunny:{
             for(int s = start; s < start + 3000; s+=3){
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
@@ -1080,13 +1107,15 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               if(does_intersect(t, u, v)){
                 selectedPress = true;
                 selected_index = t_idx * 4;
+                selected_vertex_index = start;
                 cout << "BUNNY Intersect!" << endl;
                 break;
               }
             }
             start += 3000;
             break;
-          case Bumpy:
+          }
+          case Bumpy:{
             for(int s = start; s < start + 3000; s+=3){
               Vector3f coord1 = V.col(s);
               Vector3f coord2 = V.col(s + 1);
@@ -1099,12 +1128,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
               if(does_intersect(t, u, v)){
                 selectedPress = true;
                 selected_index = t_idx * 4;
+                selected_vertex_index = start;
                 cout << "BUMPY CUBE Intersect!" << endl;
                 break;
               }
             }
             start += 3000;
             break;
+          }
         }
         if(selected) break;
       } // ObjectType for loop
@@ -1122,106 +1153,141 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
       switch (key)
       {
         // ADDING OBJECTS
-        case  GLFW_KEY_1:
+        case  GLFW_KEY_1:{
             cout << "Adding unit cube to the origin" << endl;
             numObjects++;
             addUnitCube();
             break;
-        case GLFW_KEY_2:
+        }
+        case GLFW_KEY_2:{
             cout << "Adding bumpy cube to the origin" << endl;
             numObjects++;
             addBumpy();
             break;
-        case  GLFW_KEY_3:
+        }
+        case  GLFW_KEY_3:{
             cout << "Adding bunny to the origin" << endl;
             numObjects++;
             addBunny();
             break;
+        }
         // RENDERING SETTINGS
-        case  GLFW_KEY_4:
+        case  GLFW_KEY_4:{
             cout << "Wireframe" << endl;
+            RenderType t = Wireframe;
+            changeRendering(t);
             break;
-        case  GLFW_KEY_5:
+        }
+        case  GLFW_KEY_5:{
             cout << "Flat Shading" << endl;
+            RenderType t = Flat;
+            changeRendering(t);
             break;
-        case  GLFW_KEY_6:
+        }
+        case  GLFW_KEY_6:{
             cout << "Phong Shading" << endl;
+            RenderType t = Phong;
+            changeRendering(t);
             break;
+        }
         // CAMERA TRANSLATION
-        case  GLFW_KEY_7:
+        case  GLFW_KEY_7:{
             cout << "Moving camera LEFT" << endl;
             break;
-        case  GLFW_KEY_8:
+        }
+        case  GLFW_KEY_8:{
             cout << "Moving camera RIGHT" << endl;
             break;
-        case  GLFW_KEY_9:
+        }
+        case  GLFW_KEY_9:{
             cout << "Moving camera UP" << endl;
             break;
-        case  GLFW_KEY_0:
+          }
+        case  GLFW_KEY_0:{
             cout << "Moving camera DOWN" << endl;
             break;
-        case GLFW_KEY_MINUS:
+          }
+        case GLFW_KEY_MINUS:{
           cout << "Moving camera IN" << endl;
           break;
-        case GLFW_KEY_EQUAL:
+        }
+        case GLFW_KEY_EQUAL:{
           cout << "Moving camera OUT" << endl;
           break;
+        }
         // OBJECT ROTATION
-        case  GLFW_KEY_F:
+        case  GLFW_KEY_F:{
             cout << "Rotating 10 degrees along Z-axis " << endl;
             break;
-        case  GLFW_KEY_G:
+          }
+        case  GLFW_KEY_G:{
             cout << "Rotating -10 degrees along Z-axis" << endl;
             break;
-        case  GLFW_KEY_H:
+          }
+        case  GLFW_KEY_H:{
             cout << "Rotating 10 degrees along X-axis" << endl;
             break;
-        case  GLFW_KEY_J:
+          }
+        case  GLFW_KEY_J:{
             cout << "Rotating -10 degrees along X-axis" << endl;
             break;
-        case  GLFW_KEY_K:
+          }
+        case  GLFW_KEY_K:{
             cout << "Rotating 10 degrees along Y-axis" << endl;
             break;
-        case  GLFW_KEY_L:
+          }
+        case  GLFW_KEY_L:{
             cout << "Rotating -10 degrees along Y-axis" << endl;
             break;
+          }
         // OBJECT TRANSLATION
-        case  GLFW_KEY_W:
+        case  GLFW_KEY_W:{
             cout << "Moving object RIGHT " << endl;
             break;
-        case  GLFW_KEY_E:
+          }
+        case  GLFW_KEY_E:{
             cout << "Movign object LEFT" << endl;
             break;
-        case  GLFW_KEY_R:
+          }
+        case  GLFW_KEY_R:{
             cout << "Moving object UP" << endl;
             break;
-        case  GLFW_KEY_T:
+          }
+        case  GLFW_KEY_T:{
             cout << "Moving object DOWN" << endl;
             break;
-        case  GLFW_KEY_Y:
+          }
+        case  GLFW_KEY_Y:{
             cout << "Moving object IN" << endl;
             break;
-        case  GLFW_KEY_U:
+          }
+        case  GLFW_KEY_U:{
             cout << "Moving object OUT" << endl;
             break;
+          }
         // OBJECT SCALING
-        case  GLFW_KEY_S:
+        case  GLFW_KEY_S:{
             cout << "Scaling UP" << endl;
             break;
-        case  GLFW_KEY_D:
+          }
+        case  GLFW_KEY_D:{
             cout << "Scaling DOWN" << endl;
             break;
+          }
         // PROJECTION
-        case  GLFW_KEY_O:
+        case  GLFW_KEY_O:{
             cout << "Orthographic Projection" << endl;
             ortho = true;
             break;
-        case  GLFW_KEY_P:
+          }
+        case  GLFW_KEY_P:{
             cout << "Perspective Projection" << endl;
             ortho = false;
             break;
-        default:
+          }
+        default:{
             break;
+          }
       }
     }
 }
@@ -1321,9 +1387,9 @@ int main(void)
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
                     // "    if(flat){"
-                    "       Normal = mat3(transpose(inverse(model))) * face_normal;"
+                    // "       Normal = mat3(transpose(inverse(model))) * face_normal;"
                     // "    }else{"
-                    // "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
+                    "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
                     // "    }"
                     "    objectColor = color;"
                     "}";
@@ -1348,15 +1414,15 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
-                  "      vec3 result = (ambient + diffuse) * objectColor;"
+                  // "      vec3 result = (ambient + diffuse) * objectColor;"
 
                         // Specular
-                  // "      float specularStrength = 0.5f;"
-                  // "      vec3 viewDir = normalize(viewPos - FragPos);"
-                  // "      vec3 reflectDir = reflect(-lightDir, norm);  "
-                  // "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
-                  // "      vec3 specular = specularStrength * spec * lightColor;  "
-                  // "      vec3 result = (ambient + diffuse + specular) * objectColor;"
+                  "      float specularStrength = 0.5f;"
+                  "      vec3 viewDir = normalize(viewPos - FragPos);"
+                  "      vec3 reflectDir = reflect(-lightDir, norm);  "
+                  "      float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);"
+                  "      vec3 specular = specularStrength * spec * lightColor;  "
+                  "      vec3 result = (ambient + diffuse + specular) * objectColor;"
                   "      outColor = vec4(result, 1.0);"
                     "}";
 
@@ -1413,77 +1479,161 @@ int main(void)
           switch(t){
             case Unit:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
-              // glDrawArrays(GL_TRIANGLES, start, 36);
-              // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-              // glEnable(GL_POLYGON_OFFSET_LINE);
-              // glPolygonOffset(-2.0f, -2.0f);
-              // glLineWidth(1.0f);
-              glDrawArrays(GL_TRIANGLES, start, 36);
-              //
-              // MatrixXf holder = MatrixXf::Zero(3,36);
-              // for(int i = start; i < start + 36; i++){
-              //   holder.col(i) = C.col(i);
-              //   C.col(i) << 0.0, 0.0, 0.0;
-              // }
-              // VBO_C.update(C);
-              //
-              // glDrawArrays(GL_LINE_LOOP, start, 36);
-              //
-              // for(int i = start; i < start + 36; i++){
-              //   C.col(i) = holder.col(i);
-              // }
-              // VBO_C.update(C);
+              RenderType type = renders[i];
+
+              switch(type){
+                case Fill:{
+                  glDrawArrays(GL_TRIANGLES, start, 36);
+                }
+                case Wireframe:{
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                  glDrawArrays(GL_TRIANGLES, start, 36);
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+                }
+                case Flat:{
+                  glDrawArrays(GL_TRIANGLES, start, 36);
+                  MatrixXf holder = MatrixXf::Zero(3,36);
+                  int idx = 0;
+                  for(int i = start; i < start + 36; i++){
+                    holder.col(idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    idx++;
+                  }
+                  VBO_C.update(C);
+
+                  glDrawArrays(GL_LINE_LOOP, start, 36);
+                  idx = 0;
+                  for(int i = start; i < start + 36; i++){
+                    C.col(i) = holder.col(idx);
+                    idx++;
+                  }
+                  VBO_C.update(C);
+                }
+                case Phong:{
+                  glDrawArrays(GL_TRIANGLES, start, 36);
+                }
+              }
+
               start += 36;
               break;
             }
             case Bunny:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
-              glDrawArrays(GL_TRIANGLES, start, 3000);
+              RenderType type = renders[i];
 
-              MatrixXf holder = MatrixXf::Zero(3,3000);
-              int holder_idx = 0;
-              for(int i = start; i < start + 3000; i++){
-                holder.col(holder_idx) = C.col(i);
-                C.col(i) << 0.0, 0.0, 0.0;
-                holder_idx++;
-              }
-              VBO_C.update(C);
+              switch(type){
+                case Fill:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                  break;
+                }
+                case Wireframe:{
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                  MatrixXf holder = MatrixXf::Zero(3,3000);
+                  int holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    holder.col(holder_idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                  holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    C.col(i) = holder.col(holder_idx);
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                  break;
+                }
+                case Flat:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
 
-              for(int i = start; i < start + 3000; i+=3){
-                glDrawArrays(GL_LINE_LOOP, i, 3);
+                  MatrixXf holder = MatrixXf::Zero(3,3000);
+                  int holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    holder.col(holder_idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+
+                  for(int i = start; i < start + 3000; i+=3){
+                    glDrawArrays(GL_LINE_LOOP, i, 3);
+                  }
+                  holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    C.col(i) = holder.col(holder_idx);
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  break;
+                }
+                case Phong:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                }
               }
-              holder_idx = 0;
-              for(int i = start; i < start + 3000; i++){
-                C.col(i) = holder.col(holder_idx);
-                holder_idx++;
-              }
-              VBO_C.update(C);
+
               start += 3000;
               break;
             }
             case Bumpy:{
               glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, model.block(0, (i * 4), 4, 4).data());
+              RenderType type = renders[i];
 
-              glDrawArrays(GL_TRIANGLES, start, 3000);
+              switch(type){
+                case Fill:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                  break;
+                }
+                case Wireframe:{
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                  MatrixXf holder = MatrixXf::Zero(3,3000);
+                  int holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    holder.col(holder_idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                  holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    C.col(i) = holder.col(holder_idx);
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                  break;
+                }
+                case Flat:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
 
-              MatrixXf holder = MatrixXf::Zero(3,3000);
-              int holder_idx = 0;
-              for(int i = start; i < start + 3000; i++){
-                holder.col(holder_idx) = C.col(i);
-                C.col(i) << 0.0, 0.0, 0.0;
-                holder_idx++;
-              }
-              VBO_C.update(C);
+                  MatrixXf holder = MatrixXf::Zero(3,3000);
+                  int holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    holder.col(holder_idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
 
-              for(int i = start; i < start + 3000; i+=3){
-                glDrawArrays(GL_LINE_LOOP, i, 3);
+                  for(int i = start; i < start + 3000; i+=3){
+                    glDrawArrays(GL_LINE_LOOP, i, 3);
+                  }
+                  holder_idx = 0;
+                  for(int i = start; i < start + 3000; i++){
+                    C.col(i) = holder.col(holder_idx);
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
+                  break;
+                }
+                case Phong:{
+                  glDrawArrays(GL_TRIANGLES, start, 3000);
+                }
               }
-              holder_idx = 0;
-              for(int i = start; i < start + 3000; i++){
-                C.col(i) = holder.col(holder_idx);
-                holder_idx++;
-              }
-              VBO_C.update(C);
               start += 3000;
               break;
             }
