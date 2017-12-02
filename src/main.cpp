@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -68,11 +68,13 @@ double currentX, currentY, previousX, previousY;
 bool selected = false;
 int selected_index = -1;
 int selected_vertex_index = -1;
+int previousIdx = -1;
 ObjectType select_type;
+ObjectType previousType;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(1.0, 1.0, 0.0);
+Vector3f lightPos(1.0, 0.0, 0.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 40;
@@ -116,7 +118,7 @@ MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
-float focal_length = 2.0;
+float focal_length = 1.0;
 Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
@@ -1483,7 +1485,6 @@ pair<int, int> wasSelected(double xworld, double yworld)
     switch(t){
       case Unit:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
-        cout << "Unit model matrix:\n" <<model_matrix << endl;
         for(int v = start_idx; v < start_idx + 36; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1527,7 +1528,6 @@ pair<int, int> wasSelected(double xworld, double yworld)
       }
       case Bunny:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
-        cout << "Bunny model matrix:\n" <<model_matrix << endl;
         for(int v = start_idx; v < start_idx + 3000; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1572,7 +1572,6 @@ pair<int, int> wasSelected(double xworld, double yworld)
       }
       case Bumpy:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
-        cout << "Bumpy model matrix:\n" << model_matrix << endl;
         for(int v = start_idx; v < start_idx + 3000; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1617,7 +1616,6 @@ pair<int, int> wasSelected(double xworld, double yworld)
       }
     }
   } //end of for loop
-  cout << "Selected index inside wasSelected: " << selected_vertex_index << endl;
   return pair<int,int>(selected_vertex_index, selected_index);
 
 }
@@ -1678,76 +1676,117 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         x_world = p_world[0] * 0.5 * 1.91632;
         y_world = p_world[1] * 0.5 * 1.91632;
       }
-      // int previousIdx = selected_vertex_index;
-      // ObjectType previousType = select_type;
+
       // cout << "Previous selected idx: " << selected_vertex_index << endl;
       pair<int, int> result = wasSelected(x_world, y_world);
 
       selected_vertex_index = result.first;
       selected_index = result.second;
-      cout << "Newly selected idx: " << selected_vertex_index << endl;
 
-      // if(selected_vertex_index > -1){
-      //   // change the color and update
-      //   switch(select_type){
-      //     case Unit:{
-      //       int idx = 0;
-      //       for(int i = selected_vertex_index; i < selected_vertex_index + 36; i++){
-      //         C_holder.col(idx) << C.col(i);
-      //         C.col(i) << 1.0, 1.0, 1.0;
-      //       }
-      //       VBO_C.update(C);
-      //       break;
-      //     }
-      //     case Bunny:{
-      //       int idx = 0;
-      //       for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
-      //         C_holder.col(idx) << C.col(i);
-      //         C.col(i) << 1.0, 1.0, 1.0;
-      //       }
-      //       VBO_C.update(C);
-      //       break;
-      //     }
-      //     case Bumpy:{
-      //       int idx = 0;
-      //       for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
-      //         C_holder.col(idx) << C.col(i);
-      //         C.col(i) << 1.0, 1.0, 1.0;
-      //       }
-      //       VBO_C.update(C);
-      //       break;
-      //     }
-      //   }
-      // }else{
-      //   if(previousIdx > -1){
-      //     switch(previousType){
-      //       case Unit:{
-      //         int idx = 0;
-      //         for(int i = previousIdx; i < previousIdx + 36; i++){
-      //           C.col(i) << C_holder.col(idx);
-      //         }
-      //         VBO_C.update(C);
-      //         break;
-      //       }
-      //       case Bunny:{
-      //         int idx = 0;
-      //         for(int i = previousIdx; i < previousIdx + 3000; i++){
-      //           C.col(i) << C_holder.col(idx);
-      //         }
-      //         VBO_C.update(C);
-      //         break;
-      //       }
-      //       case Bumpy:{
-      //         int idx = 0;
-      //         for(int i = previousIdx; i < previousIdx + 3000; i++){
-      //           C.col(i) << C_holder.col(idx);
-      //         }
-      //         VBO_C.update(C);
-      //         break;
-      //       }
-      //     }
-      //   }
-      // }
+      // CHANGE SELECTED OBJECT'S COLOR
+      if(selected_vertex_index > -1){
+        // change the color and update
+        cout << "Changing selected object's color" << endl;
+        if(previousIdx > -1){
+          cout << "Selected nothing, changing previously select object's color back to original" << endl;
+          switch(previousType){
+            case Unit:{
+              cout << "\t Unit" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 36; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bunny:{
+              cout << "\tBunny" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bumpy:{
+              cout << "\tBumpy" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+          }
+        }
+        switch(select_type){
+          case Unit:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 36; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+          case Bunny:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+          case Bumpy:{
+            int idx = 0;
+            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+              C_holder.col(idx) << C.col(i);
+              C.col(i) << 1.0, 1.0, 1.0;
+            }
+            VBO_C.update(C);
+            break;
+          }
+        }
+        previousIdx = selected_vertex_index;
+        previousType = select_type;
+
+      }
+      else{
+        if(previousIdx > -1){
+          cout << "Selected nothing, changing previously select object's color back to original" << endl;
+          switch(previousType){
+            case Unit:{
+              cout << "\t Unit" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 36; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bunny:{
+              cout << "\tBunny" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+            case Bumpy:{
+              cout << "\tBumpy" << endl;
+              int idx = 0;
+              for(int i = previousIdx; i < previousIdx + 3000; i++){
+                C.col(i) << C_holder.col(idx);
+              }
+              VBO_C.update(C);
+              break;
+            }
+          }
+          previousIdx = -1;
+        }
+      }
 
     }else if(action == GLFW_RELEASE && selectedPress){
       selected = true;
@@ -2219,6 +2258,8 @@ int main(void)
                 case Phong:{
                   glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
+                  glUniform1i(program.uniform("is_flat"), true);
+
                 }
               }
 
