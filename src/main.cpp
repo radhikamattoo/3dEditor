@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -363,7 +363,6 @@ void addNormals(ObjectType type)
           bumpy_vertices.col(idx) = sum;
         }
       }
-      // cout << "N_Vertices is: \n" << N_vertices.block(0, start, 3, 3) << endl;
       break;
     }
   }
@@ -1484,7 +1483,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
     switch(t){
       case Unit:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
-        cout << model_matrix << endl;
+        cout << "Unit model matrix:\n" <<model_matrix << endl;
         for(int v = start_idx; v < start_idx + 36; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1522,13 +1521,13 @@ pair<int, int> wasSelected(double xworld, double yworld)
              }
           }
         }
-        cout << "model index: "<< model_idx << endl;
         start_idx += 36;
         model_idx += 4;
         break;
       }
       case Bunny:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
+        cout << "Bunny model matrix:\n" <<model_matrix << endl;
         for(int v = start_idx; v < start_idx + 3000; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1573,6 +1572,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
       }
       case Bumpy:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
+        cout << "Bumpy model matrix:\n" << model_matrix << endl;
         for(int v = start_idx; v < start_idx + 3000; v+=3){
           Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
           Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
@@ -1617,14 +1617,15 @@ pair<int, int> wasSelected(double xworld, double yworld)
       }
     }
   } //end of for loop
+  cout << "Selected index inside wasSelected: " << selected_vertex_index << endl;
   return pair<int,int>(selected_vertex_index, selected_index);
 
 }
+
 void window_size_callback(GLFWwindow* window, int width, int height)
 {
-  cout << "Window resize" << endl;
+  cout << "Resizing window" << endl;
   aspect = width/height;
-  cout << "Aspect ratio is: " << aspect << endl;
 
   t = tan(theta/2) * abs(n);
   b = -t;
@@ -1639,15 +1640,6 @@ void window_size_callback(GLFWwindow* window, int width, int height)
   0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
   0., 0., 0.,   1.;
 
-  // orthographic <<
-  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
-  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
-  // 0., 0., 2/(n-f), -(n+f)/(n-f),
-  // 0., 0., 0.,   1.;
-
-
-  // perspective maps a frustrum to a unit cube
-  // take  vertex from each end of the frustrum and map them to the unit cube
   perspective <<
   2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
   0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
@@ -1660,6 +1652,7 @@ void window_size_callback(GLFWwindow* window, int width, int height)
     projection = perspective;
   }
 }
+
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
   // Get the position of the mouse in the window
@@ -1685,76 +1678,76 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         x_world = p_world[0] * 0.5 * 1.91632;
         y_world = p_world[1] * 0.5 * 1.91632;
       }
-      int previousIdx = selected_vertex_index;
-      ObjectType previousType = select_type;
-      cout << "Previous selected type was: " << select_type << endl;
+      // int previousIdx = selected_vertex_index;
+      // ObjectType previousType = select_type;
+      // cout << "Previous selected idx: " << selected_vertex_index << endl;
       pair<int, int> result = wasSelected(x_world, y_world);
-      cout << "Newly selected type: " << select_type << endl;
 
       selected_vertex_index = result.first;
       selected_index = result.second;
+      cout << "Newly selected idx: " << selected_vertex_index << endl;
 
-      if(selected_vertex_index > -1){
-        // change the color and update
-        switch(select_type){
-          case Unit:{
-            int idx = 0;
-            for(int i = selected_vertex_index; i < selected_vertex_index + 36; i++){
-              C_holder.col(idx) << C.col(i);
-              C.col(i) << 1.0, 1.0, 1.0;
-            }
-            VBO_C.update(C);
-            break;
-          }
-          case Bunny:{
-            int idx = 0;
-            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
-              C_holder.col(idx) << C.col(i);
-              C.col(i) << 1.0, 1.0, 1.0;
-            }
-            VBO_C.update(C);
-            break;
-          }
-          case Bumpy:{
-            int idx = 0;
-            for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
-              C_holder.col(idx) << C.col(i);
-              C.col(i) << 1.0, 1.0, 1.0;
-            }
-            VBO_C.update(C);
-            break;
-          }
-        }
-      }else{
-        if(previousIdx > -1){
-          switch(previousType){
-            case Unit:{
-              int idx = 0;
-              for(int i = previousIdx; i < previousIdx + 36; i++){
-                C.col(i) << C_holder.col(idx);
-              }
-              VBO_C.update(C);
-              break;
-            }
-            case Bunny:{
-              int idx = 0;
-              for(int i = previousIdx; i < previousIdx + 3000; i++){
-                C.col(i) << C_holder.col(idx);
-              }
-              VBO_C.update(C);
-              break;
-            }
-            case Bumpy:{
-              int idx = 0;
-              for(int i = previousIdx; i < previousIdx + 3000; i++){
-                C.col(i) << C_holder.col(idx);
-              }
-              VBO_C.update(C);
-              break;
-            }
-          }
-        }
-      }
+      // if(selected_vertex_index > -1){
+      //   // change the color and update
+      //   switch(select_type){
+      //     case Unit:{
+      //       int idx = 0;
+      //       for(int i = selected_vertex_index; i < selected_vertex_index + 36; i++){
+      //         C_holder.col(idx) << C.col(i);
+      //         C.col(i) << 1.0, 1.0, 1.0;
+      //       }
+      //       VBO_C.update(C);
+      //       break;
+      //     }
+      //     case Bunny:{
+      //       int idx = 0;
+      //       for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+      //         C_holder.col(idx) << C.col(i);
+      //         C.col(i) << 1.0, 1.0, 1.0;
+      //       }
+      //       VBO_C.update(C);
+      //       break;
+      //     }
+      //     case Bumpy:{
+      //       int idx = 0;
+      //       for(int i = selected_vertex_index; i < selected_vertex_index + 3000; i++){
+      //         C_holder.col(idx) << C.col(i);
+      //         C.col(i) << 1.0, 1.0, 1.0;
+      //       }
+      //       VBO_C.update(C);
+      //       break;
+      //     }
+      //   }
+      // }else{
+      //   if(previousIdx > -1){
+      //     switch(previousType){
+      //       case Unit:{
+      //         int idx = 0;
+      //         for(int i = previousIdx; i < previousIdx + 36; i++){
+      //           C.col(i) << C_holder.col(idx);
+      //         }
+      //         VBO_C.update(C);
+      //         break;
+      //       }
+      //       case Bunny:{
+      //         int idx = 0;
+      //         for(int i = previousIdx; i < previousIdx + 3000; i++){
+      //           C.col(i) << C_holder.col(idx);
+      //         }
+      //         VBO_C.update(C);
+      //         break;
+      //       }
+      //       case Bumpy:{
+      //         int idx = 0;
+      //         for(int i = previousIdx; i < previousIdx + 3000; i++){
+      //           C.col(i) << C_holder.col(idx);
+      //         }
+      //         VBO_C.update(C);
+      //         break;
+      //       }
+      //     }
+      //   }
+      // }
 
     }else if(action == GLFW_RELEASE && selectedPress){
       selected = true;
@@ -1995,8 +1988,6 @@ int main(void)
     VertexArrayObject VAO;
     VAO.init();
     VAO.bind();
-
-    // Initialize everything needed
 
     //------------------------------------------
     // OFF DATA
