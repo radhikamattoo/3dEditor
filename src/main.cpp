@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -74,7 +74,7 @@ ObjectType previousType;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(1.0, 0.0, 0.0);
+Vector3f lightPos(0.5, 0.0, 0.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 40;
@@ -1151,6 +1151,7 @@ void deleteObject()
   if(selected_vertex_index > -1){
     switch(select_type){
       case Unit:{
+        cout << "Deleting UNIT cube" << endl;
         MatrixXf V_holder(3, (V.cols()-36));
         MatrixXf N_faces_holder(3, (N_faces.cols()-36));
         MatrixXf N_vertices_holder(3, (N_vertices.cols()-36));
@@ -1160,21 +1161,28 @@ void deleteObject()
         vector<RenderType> renders_holder;
         int start = selected_vertex_index;
         int end = start + 36;
-
+        cout << "Start and end index: " << start << "," << end << endl;
+        int holder_idx = 0;
         for(int i = 0; i < V.cols(); i++){
           if(i >= start && i < end) continue;
-          V_holder.col(i) << V.col(i);
-          N_faces_holder.col(i) << N_faces.col(i);
-          N_vertices_holder.col(i) << N_vertices.col(i);
-          C_holder.col(i) << C.col(i);
+          V_holder.col(holder_idx) << V.col(i);
+          N_faces_holder.col(holder_idx) << N_faces.col(i);
+          N_vertices_holder.col(holder_idx) << N_vertices.col(i);
+          C_holder.col(holder_idx) << C.col(i);
+          holder_idx++;
+          cout << "i is: \n" << i << endl;
         }
         start = selected_index;
         end = selected_index + 4;
+        cout << "Replacing model matrix" << endl;
+        holder_idx = 0;
         for(int i = 0; i < model.cols(); i++){
           if(i >= start && i < end) continue;
-          model_holder.col(i) << model.col(i);
+          model_holder.col(holder_idx) << model.col(i);
+          holder_idx++;
         }
         start = selected_index/4;
+        cout << "Replacing vectors" << endl;
         for(int i = 0; i < types.size(); i++){
           if(i == start) continue;
           types_holder.push_back(types[i]);
@@ -1186,6 +1194,7 @@ void deleteObject()
           types.push_back(types_holder[i]);
           renders.push_back(renders_holder[i]);
         }
+        cout << "Reassigning matrices"<< endl;
         V = V_holder;
         N_faces = N_faces_holder;
         N_vertices = N_vertices_holder;
@@ -1200,6 +1209,7 @@ void deleteObject()
         break;
       }
       case Bunny:{
+        cout << "Deleting BUNNY" << endl;
         MatrixXf V_holder(3, (V.cols()-3000));
         MatrixXf N_faces_holder(3, (N_faces.cols()-3000));
         MatrixXf N_vertices_holder(3, (N_vertices.cols()-3000));
@@ -1208,19 +1218,22 @@ void deleteObject()
         vector<ObjectType> types_holder;
         int start = selected_vertex_index;
         int end = start + 3000;
-
+        int holder_idx = 0;
         for(int i = 0; i < V.cols(); i++){
           if(i >= start && i < end) continue;
-          V_holder.col(i) << V.col(i);
-          N_faces_holder.col(i) << N_faces.col(i);
-          N_vertices_holder.col(i) << N_vertices.col(i);
-          C_holder.col(i) << C.col(i);
+          V_holder.col(holder_idx) << V.col(i);
+          N_faces_holder.col(holder_idx) << N_faces.col(i);
+          N_vertices_holder.col(holder_idx) << N_vertices.col(i);
+          C_holder.col(holder_idx) << C.col(i);
+          holder_idx++;
         }
         start = selected_index;
         end = selected_index + 4;
+        holder_idx = 0;
         for(int i = 0; i < model.cols(); i++){
           if(i >= start && i < end) continue;
-          model_holder.col(i) << model.col(i);
+          model_holder.col(holder_idx) << model.col(i);
+          holder_idx++;
         }
         start = selected_index/4;
         for(int i = 0; i < types.size(); i++){
@@ -1241,9 +1254,10 @@ void deleteObject()
         VBO_N_V.update(N_vertices);
         VBO_C.update(C);
         numObjects--;
+        break;
       }
-      break;
       case Bumpy:{
+        cout << "Deleting BUMPY" << endl;
         MatrixXf V_holder(3, (V.cols()-3000));
         MatrixXf N_faces_holder(3, (N_faces.cols()-3000));
         MatrixXf N_vertices_holder(3, (N_vertices.cols()-3000));
@@ -1948,11 +1962,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             scaleTriangle(false);
             break;
           }
-      // PROJECTION
-      case  GLFW_KEY_C:{
-          cout << "DELETING object" << endl;
-          deleteObject();
-          break;
+          // DELETION
+          case  GLFW_KEY_C:{
+            deleteObject();
+            break;
         }
         // PROJECTION
         case  GLFW_KEY_O:{
@@ -2164,6 +2177,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                 }
                 case Wireframe:{
@@ -2195,6 +2209,7 @@ int main(void)
                 case Phong:{
                   glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 36);
+                  glUniform1i(program.uniform("is_flat"), true);
                 }
               }
 
@@ -2212,6 +2227,7 @@ int main(void)
                   break;
                 }
                 case Wireframe:{
+
                   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                   MatrixXf holder = MatrixXf::Zero(3,3000);
                   int holder_idx = 0;
@@ -2272,6 +2288,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
+                  glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   break;
                 }
