@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -74,7 +74,7 @@ ObjectType previousType;
 bool selectedPress = false;
 
 // Light position
-Vector3f lightPos(0.5, 0.0, 0.0);
+Vector3f lightPos(0.0, 0.0, 1.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 40;
@@ -192,7 +192,7 @@ pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
 
     for(int j = 0; j < 3; j++){
       if(enlarge){
-        V(v,j) = (line_data[j]*7);
+        V(v,j) = (line_data[j]*6);
       }else{
         V(v,j) = (line_data[j]/7);
       }
@@ -290,6 +290,8 @@ void addNormals(ObjectType type)
           unit_vertices.col(idx) = sum;
         }
       }
+      cout << "Unit cube face normals: \n" << unit_faces << endl;
+      cout << "Unit cube vertex normals: \n" << unit_vertices << endl;
       break;
     }
 
@@ -849,8 +851,8 @@ void addBunny()
         // 0.,           0.,            0.117538,          0.000170675,
         // 0.,           0.,            0.,                1.;
 
-        1.,    0.,            0.,                0.0015583,
-        0.,          1.0,     0.,                -0.0102434,
+        1.,    0.,            0.,                0.0033,
+        0.,          1.0,     0.,                -0.0165,
         0.,           0.,            1.,          0.000170675,
         0.,           0.,            0.,                1.;
 
@@ -866,7 +868,6 @@ void addBunny()
       0.,         0.,            1,                               0.0119573,
       0.,         0.,            0.,                1.;
   }
-
   int bunny_idx = 0;
   for(int i = start; i < start + 3000; i++){
     N_vertices.col(i) << bunny_vertices.col(bunny_idx);
@@ -1107,6 +1108,42 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
   }
 
 }
+void changeProjection(GLFWwindow* window){
+  // Get the size of the window
+  int width, height;
+  glfwGetWindowSize(window, &width, &height);
+  aspect = width/height;
+
+  t = tan(theta/2) * abs(n);
+  b = -t;
+
+  r = aspect * t;
+  l = -r;
+
+  if(ortho){
+    cout << "Changing to orthographic" << endl;
+    V /= ORTHO_FACTOR;
+    orthographic <<
+    2/(r - l), 0., 0., -((r+l)/(r-l)),
+    0., 2/(t - b), 0., -((t+b)/(t-b)),
+    0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
+    0., 0., 0.,   1.;
+    projection = orthographic;
+  }else{
+    cout << "Changing to perspective" << endl;
+    V *= ORTHO_FACTOR;
+    perspective <<
+    2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
+    0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
+    0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
+    0., 0., -1., 0;
+    projection = perspective;
+  }
+  // loop through model matrices and scale the translation
+
+  VBO.update(V);
+}
+
 void changeView(int direction)
 {
   float factor = 0.1;
@@ -1971,11 +2008,19 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         case  GLFW_KEY_O:{
             cout << "Orthographic Projection" << endl;
             // ortho = true;
+            if(!ortho){
+              ortho = true;
+              changeProjection(window);
+            }
             break;
           }
         case  GLFW_KEY_P:{
             cout << "Perspective Projection" << endl;
             // ortho = false;
+            if(ortho){
+              ortho = false;
+              changeProjection(window);
+            }
             break;
           }
         default:{
@@ -2179,6 +2224,7 @@ int main(void)
                 case Fill:{
                   glUniform1i(program.uniform("is_flat"), true);
                   glDrawArrays(GL_TRIANGLES, start, 36);
+                  break;
                 }
                 case Wireframe:{
                   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -2219,11 +2265,13 @@ int main(void)
                     idx++;
                   }
                   VBO_C.update(C);
+                  break;
                 }
                 case Phong:{
                   glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                   glUniform1i(program.uniform("is_flat"), true);
+                  break;
                 }
               }
 
@@ -2288,7 +2336,7 @@ int main(void)
                   glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   glUniform1i(program.uniform("is_flat"), true);
-
+                  break;
                 }
               }
 
@@ -2352,6 +2400,7 @@ int main(void)
                 case Phong:{
                   glUniform1i(program.uniform("is_flat"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
+                  break;
                 }
               }
               start += 3000;
