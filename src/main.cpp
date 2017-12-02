@@ -43,7 +43,6 @@ MatrixXf C_holder(3,3000);
 // Normals
 VertexBufferObject VBO_N_F;
 VertexBufferObject VBO_N_V;
-VertexBufferObject VBO_N;
 MatrixXf N_faces(3,36); //per triangle normal
 MatrixXf N_vertices(3,36); //per vertex normal
 vector<int> rendering;
@@ -57,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -76,7 +75,7 @@ bool selectedPress = false;
 Vector3f lightPos(1.0, 1.0, 0.0);
 
 // Amount to divide/multiply vertices by in orthographic projection
-int ORTHO_FACTOR = 70;
+int ORTHO_FACTOR = 40;
 
 
 Vector4f initBunnyOrtho;
@@ -117,7 +116,7 @@ MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
-float focal_length = 1.0;
+float focal_length = 2.0;
 Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
@@ -550,7 +549,6 @@ void initialize(GLFWwindow* window)
   0., 0., 1., 0.,
   0., 0., 0., 1.;
 
-  cout << "Setting model matrix" << endl;
   if (ortho){
     model <<
         1./70,     0.,     0.,     0.,
@@ -564,7 +562,6 @@ void initialize(GLFWwindow* window)
         0.,     0.,     1.,     0.,
         0.,     0.,     0.,     1.;
   }
-  cout << "Done setting model matrix" << endl;
 
   //------------------------------------------
   // MVP MATRIX
@@ -714,6 +711,7 @@ void addUnitCube()
 
     MVP.block(0, 4 * (numObjects-1), 4, 4) = projection * view *   model.block(0, 4 * (numObjects-1), 4, 4);
   }
+  cout << "Adding model matrix" << endl;
   if (ortho){
     model.block(0, 4 * (numObjects-1), 4, 4) <<
         1.,     0.,     0.,     0.,
@@ -727,8 +725,8 @@ void addUnitCube()
         0.,     0.,     1.,     0.,
         0.,     0.,     0.,     1.;
   }
+  cout << "Filling V matrix" << endl;
   // Update sizes of all matrices
-
   // BOTTOM
   V.col(start) << 0.5f, -0.5f, 0.5f;
   V.col(start + 1) <<   0.5, -0.5, -0.5;
@@ -785,7 +783,6 @@ void addUnitCube()
     unit_idx++;
     C.col(i) << 1.0, 0.0, 0.0;
   }
-
   if(ortho){
     V.block(0, start, 3, 36) /= ORTHO_FACTOR;
   }
@@ -793,6 +790,8 @@ void addUnitCube()
   VBO_N_V.update(N_vertices);
   VBO_C.update(C);
   VBO.update(V);
+  cout << "UPDATED VBOS" << endl;
+
 
 
 }
@@ -1110,9 +1109,7 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
 void changeView(int direction)
 {
   float factor = 0.1;
-  if(ortho){
-    factor /= ORTHO_FACTOR;
-  }
+
   if(direction == 0){
     eye[0] += factor;
   }else if(direction == 1){
@@ -1150,6 +1147,256 @@ void changeView(int direction)
 void deleteObject()
 {
 
+  if(selected_vertex_index > -1){
+    switch(select_type){
+      case Unit:{
+        MatrixXf V_holder(3, (V.cols()-36));
+        MatrixXf N_faces_holder(3, (N_faces.cols()-36));
+        MatrixXf N_vertices_holder(3, (N_vertices.cols()-36));
+        MatrixXf C_holder(3, (C.cols()-36));
+        MatrixXf model_holder(4, (model.cols()-4));
+        vector<ObjectType> types_holder;
+        vector<RenderType> renders_holder;
+        int start = selected_vertex_index;
+        int end = start + 36;
+
+        for(int i = 0; i < V.cols(); i++){
+          if(i >= start && i < end) continue;
+          V_holder.col(i) << V.col(i);
+          N_faces_holder.col(i) << N_faces.col(i);
+          N_vertices_holder.col(i) << N_vertices.col(i);
+          C_holder.col(i) << C.col(i);
+        }
+        start = selected_index;
+        end = selected_index + 4;
+        for(int i = 0; i < model.cols(); i++){
+          if(i >= start && i < end) continue;
+          model_holder.col(i) << model.col(i);
+        }
+        start = selected_index/4;
+        for(int i = 0; i < types.size(); i++){
+          if(i == start) continue;
+          types_holder.push_back(types[i]);
+          renders_holder.push_back(renders[i]);
+        }
+        types.clear();
+        renders.clear();
+        for(int i = 0; i < types_holder.size(); i++){
+          types.push_back(types_holder[i]);
+          renders.push_back(renders_holder[i]);
+        }
+        V = V_holder;
+        N_faces = N_faces_holder;
+        N_vertices = N_vertices_holder;
+        C = C_holder;
+        model = model_holder;
+        VBO.update(V);
+        VBO_N_F.update(N_faces);
+        VBO_N_V.update(N_vertices);
+        VBO_C.update(C);
+        numObjects--;
+        cout << "DELETED UNIT CUBE" << endl;
+        break;
+      }
+      case Bunny:{
+        MatrixXf V_holder(3, (V.cols()-3000));
+        MatrixXf N_faces_holder(3, (N_faces.cols()-3000));
+        MatrixXf N_vertices_holder(3, (N_vertices.cols()-3000));
+        MatrixXf C_holder(3, (C.cols()-3000));
+        MatrixXf model_holder(4, (model.cols()-4));
+        vector<ObjectType> types_holder;
+        int start = selected_vertex_index;
+        int end = start + 3000;
+
+        for(int i = 0; i < V.cols(); i++){
+          if(i >= start && i < end) continue;
+          V_holder.col(i) << V.col(i);
+          N_faces_holder.col(i) << N_faces.col(i);
+          N_vertices_holder.col(i) << N_vertices.col(i);
+          C_holder.col(i) << C.col(i);
+        }
+        start = selected_index;
+        end = selected_index + 4;
+        for(int i = 0; i < model.cols(); i++){
+          if(i >= start && i < end) continue;
+          model_holder.col(i) << model.col(i);
+        }
+        start = selected_index/4;
+        for(int i = 0; i < types.size(); i++){
+          if(i == start) continue;
+          types_holder.push_back(types[i]);
+        }
+        types.clear();
+        for(int i = 0; i < types_holder.size(); i++){
+          types.push_back(types_holder[i]);
+        }
+        V = V_holder;
+        N_faces = N_faces_holder;
+        N_vertices = N_vertices_holder;
+        C = C_holder;
+        model = model_holder;
+        VBO.update(V);
+        VBO_N_F.update(N_faces);
+        VBO_N_V.update(N_vertices);
+        VBO_C.update(C);
+        numObjects--;
+      }
+      break;
+      case Bumpy:{
+        MatrixXf V_holder(3, (V.cols()-3000));
+        MatrixXf N_faces_holder(3, (N_faces.cols()-3000));
+        MatrixXf N_vertices_holder(3, (N_vertices.cols()-3000));
+        MatrixXf C_holder(3, (C.cols()-3000));
+        MatrixXf model_holder(4, (model.cols()-4));
+        vector<ObjectType> types_holder;
+        int start = selected_vertex_index;
+        int end = start + 3000;
+
+        for(int i = 0; i < V.cols(); i++){
+          if(i >= start && i < end) continue;
+          V_holder.col(i) << V.col(i);
+          N_faces_holder.col(i) << N_faces.col(i);
+          N_vertices_holder.col(i) << N_vertices.col(i);
+          C_holder.col(i) << C.col(i);
+        }
+        start = selected_index;
+        end = selected_index + 4;
+        for(int i = 0; i < model.cols(); i++){
+          if(i >= start && i < end) continue;
+          model_holder.col(i) << model.col(i);
+        }
+        start = selected_index/4;
+        for(int i = 0; i < types.size(); i++){
+          if(i == start) continue;
+          types_holder.push_back(types[i]);
+        }
+        types.clear();
+        for(int i = 0; i < types_holder.size(); i++){
+          types.push_back(types_holder[i]);
+        }
+        V = V_holder;
+        N_faces = N_faces_holder;
+        N_vertices = N_vertices_holder;
+        C = C_holder;
+        model = model_holder;
+        VBO.update(V);
+        VBO_N_F.update(N_faces);
+        VBO_N_V.update(N_vertices);
+        VBO_C.update(C);
+        numObjects--;
+        break;
+      }
+    }
+    selected_index = -1;
+    selected_vertex_index = -1;
+    if(numObjects == 0){
+      //------------------------------------------
+      // VERTEX DATA
+      //------------------------------------------
+      V.conservativeResize(3,36);
+      C.conservativeResize(3,36);
+      N_vertices.conservativeResize(3,36);
+      N_faces.conservativeResize(3,36);
+      model.conservativeResize(4,4);
+      if (ortho){
+        model <<
+            1./70,     0.,     0.,     0.,
+            0.,     1./70,     0.,     0.,
+            0.,     0.,     1./70,     0.,
+            0.,     0.,     0.,     1.;
+      }else {
+        model <<
+            1.,     0.,     0.,     0.,
+            0.,     1.,     0.,     0.,
+            0.,     0.,     1.,     0.,
+            0.,     0.,     0.,     1.;
+      }
+       V <<
+      -0.0, -0.0,  0.0,
+       0.0, -0.0,  0.0,
+       0.0, -0.0, -0.0, //bottom triangle
+      -0.0, -0.0, -0.0,
+      -0.0, -0.0,  0.0,
+       0.0, -0.0, -0.0, //upper triangle
+      -0.0, -0.0, -0.0,
+       0.0, -0.0, -0.0,
+       0.0,  0.0, -0.0, //bottom triangle
+      -0.0,  0.0, -0.0,
+      -0.0, -0.0, -0.0,
+       0.0,  0.0, -0.0, //upper triangle
+       -0.0, -0.0,  0.0,
+       -0.0,  0.0,  0.0,
+       -0.0, -0.0, -0.0, //bottom triangle
+       -0.0,  0.0,  0.0,
+       -0.0, -0.0, -0.0,
+       -0.0,  0.0, -0.0, //upper triangle
+       0.0, -0.0,  0.0,
+       0.0,  0.0,  0.0,
+       0.0, -0.0, -0.0, //bottom triangle
+       0.0, -0.0, -0.0,
+       0.0,  0.0,  0.0,
+       0.0,  0.0, -0.0, //upper triangle
+       0.0,  0.0,  0.0,
+       0.0,  0.0, -0.0,
+       -0.0, 0.0, 0.0, //bottom triangle
+       -0.0, 0.0, -0.0,
+       0.0,  0.0, -0.0,
+       -0.0, 0.0, 0.0, //upper triangle
+       -0.0, -0.0,  0.0,
+        0.0, -0.0,  0.0,
+        0.0,  0.0,  0.0, //bottom triangle
+       -0.0, -0.0,  0.0,
+        0.0,  0.0,  0.0,
+       -0.0,  0.0,  0.0; //upper triangle
+       VBO.update(V);
+       C <<
+       0.0,  1.0,  0.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0,
+       1.0,  1.0,  1.0;
+
+       VBO_C.update(C);
+
+       N_vertices = unit_vertices;
+       N_faces = unit_faces;
+       VBO_N_F.update(N_faces);
+       VBO_N_V.update(N_vertices);
+
+
+    }
+  }
 
 }
 // Solve for x, given Ax = b
@@ -1372,6 +1619,46 @@ pair<int, int> wasSelected(double xworld, double yworld)
   } //end of for loop
   return pair<int,int>(selected_vertex_index, selected_index);
 
+}
+void window_size_callback(GLFWwindow* window, int width, int height)
+{
+  cout << "Window resize" << endl;
+  aspect = width/height;
+  cout << "Aspect ratio is: " << aspect << endl;
+
+  t = tan(theta/2) * abs(n);
+  b = -t;
+
+  r = aspect * t;
+  l = -r;
+
+  // Apply projection matrix to corner points
+  orthographic <<
+  2/(r - l), 0., 0., -((r+l)/(r-l)),
+  0., 2/(t - b), 0., -((t+b)/(t-b)),
+  0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
+  0., 0., 0.,   1.;
+
+  // orthographic <<
+  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
+  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
+  // 0., 0., 2/(n-f), -(n+f)/(n-f),
+  // 0., 0., 0.,   1.;
+
+
+  // perspective maps a frustrum to a unit cube
+  // take  vertex from each end of the frustrum and map them to the unit cube
+  perspective <<
+  2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
+  0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
+  0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
+  0., 0., -1., 0;
+
+  if(ortho){
+    projection = orthographic;
+  }else{
+    projection = perspective;
+  }
 }
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -1638,12 +1925,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         // PROJECTION
         case  GLFW_KEY_O:{
             cout << "Orthographic Projection" << endl;
-            ortho = true;
+            // ortho = true;
             break;
           }
         case  GLFW_KEY_P:{
             cout << "Perspective Projection" << endl;
-            ortho = false;
+            // ortho = false;
             break;
           }
         default:{
@@ -1820,6 +2107,8 @@ int main(void)
     // Register the mouse movement callback
     glfwSetCursorPosCallback(window, cursor_pos_callback);
 
+    // Register the window resize callback
+    glfwSetWindowSizeCallback(window, window_size_callback);
 
     // Loop until the user closes the window
     while (!glfwWindowShouldClose(window))
