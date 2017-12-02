@@ -2182,9 +2182,23 @@ int main(void)
                 }
                 case Wireframe:{
                   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                  MatrixXf holder = MatrixXf::Zero(3,36);
+                  int holder_idx = 0;
+                  for(int i = start; i < start + 36; i++){
+                    holder.col(holder_idx) = C.col(i);
+                    C.col(i) << 0.0, 0.0, 0.0;
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
                   glDrawArrays(GL_TRIANGLES, start, 36);
+                  holder_idx = 0;
+                  for(int i = start; i < start + 36; i++){
+                    C.col(i) = holder.col(holder_idx);
+                    holder_idx++;
+                  }
+                  VBO_C.update(C);
                   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
+                  break;
                 }
                 case Flat:{
                   glUniform1i(program.uniform("is_flat"), true);
@@ -2227,7 +2241,6 @@ int main(void)
                   break;
                 }
                 case Wireframe:{
-
                   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                   MatrixXf holder = MatrixXf::Zero(3,3000);
                   int holder_idx = 0;
