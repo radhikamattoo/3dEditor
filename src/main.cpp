@@ -73,11 +73,8 @@ ObjectType select_type;
 ObjectType previousType;
 bool selectedPress = false;
 
-// Light position
-Vector3f lightPos(0.0, 0.0, 1.0);
-
 // Amount to divide/multiply vertices by in orthographic projection
-int ORTHO_FACTOR = 40;
+int ORTHO_FACTOR = 70;
 
 
 Vector4f initBunnyOrtho;
@@ -122,6 +119,8 @@ float focal_length = 1.0;
 Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
+// Light position
+Vector3f lightPos;
 
 //----------------------------------
 // PERSPECTIVE PROJECTION PARAMETERS
@@ -290,8 +289,6 @@ void addNormals(ObjectType type)
           unit_vertices.col(idx) = sum;
         }
       }
-      cout << "Unit cube face normals: \n" << unit_faces << endl;
-      cout << "Unit cube vertex normals: \n" << unit_vertices << endl;
       break;
     }
 
@@ -378,6 +375,11 @@ void initialize(GLFWwindow* window)
   VBO_C.init();
   VBO_N_V.init();
   VBO_N_F.init();
+  if(ortho){
+     lightPos << 1.0, 0.0, -1.0;
+  }else{
+    lightPos << 1.0, 0.0, 1.0;
+  }
 
   //------------------------------------------
   // VERTEX DATA
@@ -502,7 +504,7 @@ void initialize(GLFWwindow* window)
   perspective <<
   2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
   0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
-  0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
+  0., 0.,  (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
   0., 0., -1., 0;
 
   if(ortho){
@@ -852,8 +854,8 @@ void addBunny()
         // 0.,           0.,            0.,                1.;
 
         1.,    0.,            0.,                0.0033,
-        0.,          1.0,     0.,                -0.0165,
-        0.,           0.,            1.,          0.000170675,
+        0.,          1.0,     0.,                -0.0,
+        0.,           0.,            1.,          0.00017,
         0.,           0.,            0.,                1.;
 
   }else{
