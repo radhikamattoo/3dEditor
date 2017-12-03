@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -244,6 +244,7 @@ void changeRendering(RenderType type){
     }
   }
 }
+
 // Iterates through the N buffer and adds in the normals
 // ONLY CALLED ONCE PER OBJECT TYPE AT INITIALIZATION
 void addNormals(ObjectType type)
@@ -481,17 +482,17 @@ void initialize(GLFWwindow* window)
   l = -r;
 
   // Apply projection matrix to corner points
-  orthographic <<
-  2/(r - l), 0., 0., -((r+l)/(r-l)),
-  0., 2/(t - b), 0., -((t+b)/(t-b)),
-  0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
-  0., 0., 0.,   1.;
-
   // orthographic <<
   // 2/(r - l), 0., 0., -((r+l)/(r-l)),
   // 0., 2/(t - b), 0., -((t+b)/(t-b)),
-  // 0., 0., 2/(n-f), -(n+f)/(n-f),
+  // 0., 0., 2/(abs(f)-abs(n)), -((abs(n)+abs(f))/(abs(f)-abs(n))),
   // 0., 0., 0.,   1.;
+
+  orthographic <<
+  2/(r - l), 0., 0., -((r+l)/(r-l)),
+  0., 2/(t - b), 0., -((t+b)/(t-b)),
+  0., 0., 2/(n-f), -((n+f)/(n-f)),
+  0., 0., 0.,   1.;
 
 
   // perspective maps a frustrum to a unit cube
@@ -528,6 +529,7 @@ void initialize(GLFWwindow* window)
   0.0, 0.5, 0.0, -eye[1],
   0.0, 0.0, 0.5, -eye[2],
   0.0, 0.0, 0.0, 0.5;
+
   view = look * at;
 
   //------------------------------------------
@@ -845,13 +847,13 @@ void addBunny()
         0.,          1.0,     0.,                -0.009,
         0.,           0.,            1.,          0.00017,
         0.,           0.,            0.,                1.;
-
   }else{
     model.block(0, 4*(numObjects-1), 4, 4)<<
     1,    0.,            0.,                                    0.109091,
       0.,         1,       0.,                                    -0.6,
       0.,         0.,            1,                               0.0119573,
       0.,         0.,            0.,                1.;
+
   }
   int bunny_idx = 0;
   for(int i = start; i < start + 3000; i++){
@@ -950,6 +952,7 @@ void addBumpy()
   VBO_C.update(C);
   VBO.update(V);
 }
+
 void rotateTriangle(int axis, float direction){
   // translate back to origin
   if(selected_vertex_index > -1){
@@ -1381,8 +1384,11 @@ void deleteObject()
   }
 
 }
-
-pair<int, int> wasSelected(double xworld, double yworld)
+bool wasSelected(double alpha, double beta, double gamma)
+{
+    return abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0;
+}
+pair<int, int> checkForSelection(double xworld, double yworld)
 {
   selected_index = -1;
   selected_vertex_index = -1;
@@ -1397,39 +1403,30 @@ pair<int, int> wasSelected(double xworld, double yworld)
       case Unit:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
         for(int v = start_idx; v < start_idx + 36; v+=3){
-          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
-          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
-          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
-          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
-          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
-          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
-          double ax = a(0);
-          double ay = a(1);
-          double az = a(2);
-          double bx = b(0);
-          double by = b(1);
-          double bz = b(2);
-          double cx = c(0);
-          double cy = c(1);
-          double cz = c(2);
-          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
-          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
-          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
-          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
-          // Solve system for alpha, beta, and gamma
-          double alpha = alpha_area / total_area;
-          double beta = beta_area / total_area;
-          double gamma = gamma_area / total_area;
-          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
-             double depth = max(az, max(bz, cz));
+          // Get object vertices and convert them into world space
+          Vector4f a = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
+
+          // Calculate areas
+          double a_alpha = abs(((b(0)  - xworld) * (c(1) - yworld) - (c(0) - xworld) * (b(1) - yworld)) / 2.0);
+          double a_beta = abs(((xworld - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (yworld - a(1))) / 2.0);
+          double a_gamma = abs(((b(0) - a(0)) * (yworld - a(1)) - (xworld - a(0)) * (b(1) - a(1))) / 2.0);
+          double a_total = abs(( (b(0) - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (b(1) - a(1)))/2.0);
+
+          // Solve system
+          double alpha = a_alpha / a_total;
+          double beta = a_beta / a_total;
+          double gamma = a_gamma / a_total;
+
+          if (wasSelected(alpha, beta, gamma)) {
+             double depth = max(a(2), max(b(2), c(2))); //depth check
              if (depth > triangle_depth) {
                  cout << "SELECTED UNIT CUBE" << endl;
                  selected_index = type *4; //index in types of selected object
-                 select_type = types[type];
-                 selected_vertex_index = start_idx;
-                 // deletion_end_index =  end_index;
+                 select_type = types[type]; //object type
+                 selected_vertex_index = start_idx; //index into V/C of selected object
                  triangle_depth = depth;
-                 // index_of_object = type; //index in V of selected object
              }
           }
         }
@@ -1440,40 +1437,30 @@ pair<int, int> wasSelected(double xworld, double yworld)
       case Bunny:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
         for(int v = start_idx; v < start_idx + 3000; v+=3){
-          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
-          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
-          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
-          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
-          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
-          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
-          double ax = a(0);
-          double ay = a(1);
-          double az = a(2);
-          double bx = b(0);
-          double by = b(1);
-          double bz = b(2);
-          double cx = c(0);
-          double cy = c(1);
-          double cz = c(2);
-          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
-          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
-          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
-          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
-          // Solve system for alpha, beta, and gamma
-          double alpha = alpha_area / total_area;
-          double beta = beta_area / total_area;
-          double gamma = gamma_area / total_area;
+          // Get object vertices and convert them into world space
+          Vector4f a = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
 
-          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
-             double depth = max(az, max(bz, cz));
+          // Calculate areas
+          double a_alpha = abs(((b(0)  - xworld) * (c(1) - yworld) - (c(0) - xworld) * (b(1) - yworld)) / 2.0);
+          double a_beta = abs(((xworld - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (yworld - a(1))) / 2.0);
+          double a_gamma = abs(((b(0) - a(0)) * (yworld - a(1)) - (xworld - a(0)) * (b(1) - a(1))) / 2.0);
+          double a_total = abs(( (b(0) - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (b(1) - a(1)))/2.0);
+
+          // Solve system
+          double alpha = a_alpha / a_total;
+          double beta = a_beta / a_total;
+          double gamma = a_gamma / a_total;
+
+          if (wasSelected(alpha, beta, gamma)) {
+             double depth = max(a(2), max(b(2), c(2))); //depth check
              if (depth > triangle_depth) {
                  cout << "SELECTED BUNNY" << endl;
-                 selected_index = type*4; //index in types of selected object
-                 select_type = types[type];
-                 selected_vertex_index = start_idx;
-                 // deletion_end_index =  end_index;
+                 selected_index = type *4; //index in types of selected object
+                 select_type = types[type]; //object type
+                 selected_vertex_index = start_idx; //index into V/C of selected object
                  triangle_depth = depth;
-                 // index_of_object = type; //index in V of selected object
              }
           }
         }
@@ -1484,40 +1471,30 @@ pair<int, int> wasSelected(double xworld, double yworld)
       case Bumpy:{
         MatrixXf model_matrix = model.block(0, model_idx, 4, 4);
         for(int v = start_idx; v < start_idx + 3000; v+=3){
-          Vector4f a_obj = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
-          Vector4f b_obj = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
-          Vector4f c_obj = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
-          Vector3f a(a_obj(0), a_obj(1), a_obj(2));
-          Vector3f b(b_obj(0), b_obj(1), b_obj(2));
-          Vector3f c(c_obj(0), c_obj(1), c_obj(2));
-          double ax = a(0);
-          double ay = a(1);
-          double az = a(2);
-          double bx = b(0);
-          double by = b(1);
-          double bz = b(2);
-          double cx = c(0);
-          double cy = c(1);
-          double cz = c(2);
-          double total_area = abs(((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2.0);
-          double alpha_area = abs(((bx - xworld) * (cy - yworld) - (cx - xworld) * (by - yworld)) / 2.0);
-          double beta_area = abs(((xworld - ax) * (cy - ay) - (cx - ax) * (yworld - ay)) / 2.0);
-          double gamma_area = abs(((bx - ax) * (yworld - ay) - (xworld - ax) * (by - ay)) / 2.0);
-          // Solve system for alpha, beta, and gamma
-          double alpha = alpha_area / total_area;
-          double beta = beta_area / total_area;
-          double gamma = gamma_area / total_area;
+          // Get object vertices and convert them into world space
+          Vector4f a = model_matrix * Vector4f(V(0, v), V(1, v), V(2, v), 1.);
+          Vector4f b = model_matrix * Vector4f(V(0, v+1), V(1, v+1), V(2, v+1), 1.);
+          Vector4f c = model_matrix * Vector4f(V(0, v+2), V(1, v+2), V(2, v+2), 1.);
 
-          if (abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0) {
-             double depth = max(az, max(bz, cz));
+          // Calculate areas
+          double a_alpha = abs(((b(0)  - xworld) * (c(1) - yworld) - (c(0) - xworld) * (b(1) - yworld)) / 2.0);
+          double a_beta = abs(((xworld - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (yworld - a(1))) / 2.0);
+          double a_gamma = abs(((b(0) - a(0)) * (yworld - a(1)) - (xworld - a(0)) * (b(1) - a(1))) / 2.0);
+          double a_total = abs(( (b(0) - a(0)) * (c(1) - a(1)) - (c(0) - a(0)) * (b(1) - a(1)))/2.0);
+
+          // Solve system
+          double alpha = a_alpha / a_total;
+          double beta = a_beta / a_total;
+          double gamma = a_gamma / a_total;
+
+          if (wasSelected(alpha, beta, gamma)) {
+             double depth = max(a(2), max(b(2), c(2))); //depth check
              if (depth > triangle_depth) {
-                 cout << "Selected BUMPY CUBE" << endl;
-                 selected_index = type*4; //index in types of selected object
-                 select_type = types[type];
-                 selected_vertex_index = start_idx;
-                 // deletion_end_index =  end_index;
+                 cout << "SELECTED BUMPY CUBE" << endl;
+                 selected_index = type *4; //index in types of selected object
+                 select_type = types[type]; //object type
+                 selected_vertex_index = start_idx; //index into V/C of selected object
                  triangle_depth = depth;
-                 // index_of_object = type; //index in V of selected object
              }
           }
         }
@@ -1525,7 +1502,7 @@ pair<int, int> wasSelected(double xworld, double yworld)
         model_idx += 4;
         break;
       }
-    }
+    }// end switch case
   } //end of for loop
   return pair<int,int>(selected_vertex_index, selected_index);
 
@@ -1572,14 +1549,15 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     int width, height;
     glfwGetWindowSize(window, &width, &height);
 
+    // Convert mouse position to world coordinates
     Vector4f p_screen(xpos,height-1-ypos,0,1);
     Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
     Vector4f p_camera = projection.inverse() * p_canonical;
     Vector4f p_world = view.inverse() * p_camera;
 
     double x_world, y_world;
+    // Check if an object was clicked on and select it
     if(action == GLFW_PRESS){
-      // Check if an object was clicked on and select it
       if(ortho){
         x_world = p_world[0]/4.17421;
         y_world = p_world[1]/4.17421;
@@ -1589,7 +1567,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
       }
 
       // cout << "Previous selected idx: " << selected_vertex_index << endl;
-      pair<int, int> result = wasSelected(x_world, y_world);
+      pair<int, int> result = checkForSelection(x_world, y_world);
 
       selected_vertex_index = result.first;
       selected_index = result.second;
@@ -1948,7 +1926,7 @@ int main(void)
                     "in vec3 vertex_normal;"
                     "in vec3 face_normal;"
                     // MVP
-                    "uniform bool is_flat;"
+                    "uniform bool flat_normal;"
                     "uniform mat4 model;"
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
@@ -1960,7 +1938,7 @@ int main(void)
                     "{"
                     "    gl_Position = projection * view * model * vec4(position, 1.0);"
                     "    FragPos = vec3(model * vec4(position, 1.0f));"
-                    "    if(is_flat){"
+                    "    if(flat_normal){"
                     "       Normal = mat3(transpose(inverse(model))) * face_normal;"
                     "    }else{"
                     "       Normal = mat3(transpose(inverse(model))) * vertex_normal;"
@@ -1975,7 +1953,7 @@ int main(void)
                     "out vec4 outColor;"
                     "uniform vec3 lightPos;"
                     "uniform vec3 viewPos;"
-                    "uniform bool is_flat;"
+                    "uniform bool flat_normal;"
                     "void main()"
                     "{"
                     "    vec3 lightColor = vec3(1.0, 1.0, 1.0);"
@@ -1988,7 +1966,7 @@ int main(void)
                   "      vec3 lightDir = normalize(lightPos - FragPos);"
                   "      float diff = max(dot(norm, lightDir), 0.0);"
                   "      vec3 diffuse = diff * lightColor;"
-                  "      if(is_flat){"
+                  "      if(flat_normal){"
                   "         vec3 result = (ambient + diffuse) * objectColor;"
                   "         outColor = vec4(result, 1.0);"
                   "       }else{"
@@ -2019,7 +1997,7 @@ int main(void)
 
     glUniform3f(program.uniform("lightPos"), lightPos[0] ,lightPos[1], lightPos[2]);
     glUniform3f(program.uniform("viewPos"), eye[0], eye[1], eye[2]);
-    glUniform1i(program.uniform("is_flat"), true);
+    glUniform1i(program.uniform("flat_normal"), true);
 
     // Save the current time --- it will be used to dynamically change the triangle color
     auto t_start = std::chrono::high_resolution_clock::now();
@@ -2057,7 +2035,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                   break;
                 }
@@ -2082,7 +2060,7 @@ int main(void)
                   break;
                 }
                 case Flat:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 36);
                   MatrixXf holder = MatrixXf::Zero(3,36);
                   int idx = 0;
@@ -2103,9 +2081,9 @@ int main(void)
                   break;
                 }
                 case Phong:{
-                  glUniform1i(program.uniform("is_flat"), false);
+                  glUniform1i(program.uniform("flat_normal"), false);
                   glDrawArrays(GL_TRIANGLES, start, 36);
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   break;
                 }
               }
@@ -2119,7 +2097,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   break;
                 }
@@ -2144,7 +2122,7 @@ int main(void)
                   break;
                 }
                 case Flat:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
 
                   MatrixXf holder = MatrixXf::Zero(3,3000);
@@ -2168,9 +2146,9 @@ int main(void)
                   break;
                 }
                 case Phong:{
-                  glUniform1i(program.uniform("is_flat"), false);
+                  glUniform1i(program.uniform("flat_normal"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   break;
                 }
               }
@@ -2184,7 +2162,7 @@ int main(void)
 
               switch(type){
                 case Fill:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   break;
                 }
@@ -2209,7 +2187,7 @@ int main(void)
                   break;
                 }
                 case Flat:{
-                  glUniform1i(program.uniform("is_flat"), true);
+                  glUniform1i(program.uniform("flat_normal"), true);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
 
                   MatrixXf holder = MatrixXf::Zero(3,3000);
@@ -2233,7 +2211,7 @@ int main(void)
                   break;
                 }
                 case Phong:{
-                  glUniform1i(program.uniform("is_flat"), false);
+                  glUniform1i(program.uniform("flat_normal"), false);
                   glDrawArrays(GL_TRIANGLES, start, 3000);
                   break;
                 }
