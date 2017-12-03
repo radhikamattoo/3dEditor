@@ -844,15 +844,10 @@ void addBunny()
     N_vertices.conservativeResize(3, 3000);
     C.conservativeResize(3, 3000);
   }
-  initBunnyOrtho << 0.0015583, -0.0102434,0.000170675, 1.;
-  initBunnyPer << 0.1,-0.65,-0.2,1.;
+  initBunnyOrtho << 0.0033, -0.0, 0.00017, 1.;
+  initBunnyPer <<  0.109091,-0.717025,0.0119573,1.;
   if(ortho){
     model.block(0, 4*(numObjects-1), 4, 4)<<
-        // 0.0914923,    0.,            0.,                0.0015583,
-        // 0.,           0.0926906,     0.,                -0.0102434,
-        // 0.,           0.,            0.117538,          0.000170675,
-        // 0.,           0.,            0.,                1.;
-
         1.,    0.,            0.,                0.0033,
         0.,          1.0,     0.,                -0.0,
         0.,           0.,            1.,          0.00017,
@@ -860,13 +855,8 @@ void addBunny()
 
   }else{
     model.block(0, 4*(numObjects-1), 4, 4)<<
-    // 6.40446,    0.,            0.,                                    0.1,
-    // 0.,         6.48835,       0.,                                    -0.65,
-    // 0.,         0.,            8.22766,                               -0.2,
-    // 0.109091,         -0.717025,            0.0119573,                1.;
-
     1,    0.,            0.,                                    0.109091,
-      0.,         1,       0.,                                    -0.717025,
+      0.,         1,       0.,                                    -0.6,
       0.,         0.,            1,                               0.0119573,
       0.,         0.,            0.,                1.;
   }
@@ -1016,15 +1006,15 @@ void scaleTriangle(bool up){
 
     if(up){
       factor += 1;
-      // if(select_type == Bunny){
-      //   if(ortho){
-      //     translated = initBunnyOrtho;
-      //   }else{
-      //     translated = initBunnyPer;
-      //   }
-      // }else{
+      if(select_type == Bunny){
+        if(ortho){
+          translated = initBunnyOrtho;
+        }else{
+          translated = initBunnyPer;
+        }
+      }else{
         translated << 0.0, 0.0, 0.0, 1.0;
-      // }
+      }
       scaling <<
       factor,    0.,       0.,                        0.,
       0.,        factor,   0.,                        0.,
@@ -1036,15 +1026,15 @@ void scaleTriangle(bool up){
       model.block(0, selected_index, 4, 4).col(3) += translated;
     }else{
       factor = 1-factor;
-      // if(select_type == Bunny){
-      //   if(ortho){
-      //     translated = initBunnyOrtho;
-      //   }else{
-      //     translated = initBunnyPer;
-      //   }
-      // }else{
+      if(select_type == Bunny){
+        if(ortho){
+          translated = initBunnyOrtho;
+        }else{
+          translated = initBunnyPer;
+        }
+      }else{
         translated << 0.0, 0.0, 0.0, 1.0;
-      // }
+      }
       scaling <<
       factor,    0.,       0.,                        0.,
       0.,        factor,   0.,                        0.,
@@ -1109,41 +1099,6 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     currentY = yworld;
   }
 
-}
-void changeProjection(GLFWwindow* window){
-  // Get the size of the window
-  int width, height;
-  glfwGetWindowSize(window, &width, &height);
-  aspect = width/height;
-
-  t = tan(theta/2) * abs(n);
-  b = -t;
-
-  r = aspect * t;
-  l = -r;
-
-  if(ortho){
-    cout << "Changing to orthographic" << endl;
-    V /= ORTHO_FACTOR;
-    orthographic <<
-    2/(r - l), 0., 0., -((r+l)/(r-l)),
-    0., 2/(t - b), 0., -((t+b)/(t-b)),
-    0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
-    0., 0., 0.,   1.;
-    projection = orthographic;
-  }else{
-    cout << "Changing to perspective" << endl;
-    V *= ORTHO_FACTOR;
-    perspective <<
-    2*abs(n)/(r-l), 0., (r+l)/(r-l), 0.,
-    0., (2 * abs(n))/(t-b), (t+b)/(t-b), 0.,
-    0., 0.,   (abs(f) + abs(n))/(abs(n) - abs(f)), (2 * abs(f) * abs(n))/(abs(n) - abs(f)),
-    0., 0., -1., 0;
-    projection = perspective;
-  }
-  // loop through model matrices and scale the translation
-
-  VBO.update(V);
 }
 
 void changeView(int direction)
@@ -2006,25 +1961,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             deleteObject();
             break;
         }
-        // PROJECTION
-        case  GLFW_KEY_O:{
-            cout << "Orthographic Projection" << endl;
-            // ortho = true;
-            if(!ortho){
-              ortho = true;
-              changeProjection(window);
-            }
-            break;
-          }
-        case  GLFW_KEY_P:{
-            cout << "Perspective Projection" << endl;
-            // ortho = false;
-            if(ortho){
-              ortho = false;
-              changeProjection(window);
-            }
-            break;
-          }
         default:{
             break;
           }
