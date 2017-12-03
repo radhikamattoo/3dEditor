@@ -61,7 +61,6 @@ bool ortho = false;
 // Number of objects existing in the scene
 int numObjects = 0;
 
-
 // Is an object selected?
 int selected_index = -1;
 int selected_vertex_index = -1;
@@ -111,7 +110,7 @@ MatrixXf bumpy_vertices = MatrixXf::Zero(3,3000);
 //----------------------------------
 // VIEW MATRIX PARAMETERS
 //----------------------------------
-float focal_length = 1.0;
+float focal_length = 1.5;
 Vector3f eye(0.0, 0.0, focal_length); //camera position/ eye position  //e
 Vector3f look_at(0.0, 0.0, 0.0); //target point, where we want to look //g
 Vector3f up_vec(0.0, 1.0, 0.0); //up vector //t
@@ -189,7 +188,7 @@ pair<MatrixXf, MatrixXf> read_off_data(string filename, bool enlarge)
       if(enlarge){
         V(v,j) = (line_data[j]*6);
       }else{
-        V(v,j) = (line_data[j]/7);
+        V(v,j) = (line_data[j]/9);
       }
       if(!enlarge){ //cube
         // V(v,0) += 0.1;
@@ -944,6 +943,7 @@ void addBumpy()
   }
   if(ortho){
     V.block(0, start, 3, 3000) /= ORTHO_FACTOR;
+
   }
   VBO_N_F.update(N_faces);
   VBO_N_V.update(N_vertices);
@@ -1043,6 +1043,7 @@ void scaleTriangle(bool up){
   }
 
 }
+
 // Translates triangle based on mouse movement
 void translateTriangle(int direction)
 {
@@ -1072,9 +1073,9 @@ void changeView(int direction)
   float factor = 0.1;
 
   if(direction == 0){
-    eye[0] += factor;
-  }else if(direction == 1){
     eye[0] -= factor;
+  }else if(direction == 1){
+    eye[0] += factor;
   }else if(direction == 2){
     eye[1] += factor;
   }else if(direction == 3){
@@ -1121,7 +1122,6 @@ void deleteObject()
         vector<RenderType> renders_holder;
         int start = selected_vertex_index;
         int end = start + 36;
-        cout << "Start and end index: " << start << "," << end << endl;
         int holder_idx = 0;
         for(int i = 0; i < V.cols(); i++){
           if(i >= start && i < end) continue;
@@ -1130,11 +1130,9 @@ void deleteObject()
           N_vertices_holder.col(holder_idx) << N_vertices.col(i);
           C_holder.col(holder_idx) << C.col(i);
           holder_idx++;
-          cout << "i is: \n" << i << endl;
         }
         start = selected_index;
         end = selected_index + 4;
-        cout << "Replacing model matrix" << endl;
         holder_idx = 0;
         for(int i = 0; i < model.cols(); i++){
           if(i >= start && i < end) continue;
@@ -1142,7 +1140,6 @@ void deleteObject()
           holder_idx++;
         }
         start = selected_index/4;
-        cout << "Replacing vectors" << endl;
         for(int i = 0; i < types.size(); i++){
           if(i == start) continue;
           types_holder.push_back(types[i]);
@@ -1154,7 +1151,6 @@ void deleteObject()
           types.push_back(types_holder[i]);
           renders.push_back(renders_holder[i]);
         }
-        cout << "Reassigning matrices"<< endl;
         V = V_holder;
         N_faces = N_faces_holder;
         N_vertices = N_vertices_holder;
@@ -1165,7 +1161,6 @@ void deleteObject()
         VBO_N_V.update(N_vertices);
         VBO_C.update(C);
         numObjects--;
-        cout << "DELETED UNIT CUBE" << endl;
         break;
       }
       case Bunny:{
@@ -1386,76 +1381,6 @@ void deleteObject()
   }
 
 }
-// Solve for x, given Ax = b
-vector<float> solver(Vector3f &a_coord, Vector3f &b_coord, Vector3f &c_coord, Vector3f &ray_direction, Vector3f &ray_origin)
-{
-  // Construct matrices/vectors to solve for
-  Matrix3f A_;
-  Vector3f b_;
-
-  Vector3f a_minus_b = a_coord - b_coord;
-  Vector3f a_minus_c = a_coord - c_coord;
-  Vector3f a_minus_e = a_coord - ray_origin;
-
-  A_ << a_minus_b[0], a_minus_c[0], ray_direction[0],   a_minus_b[1], a_minus_c[1], ray_direction[1], a_minus_b[2], a_minus_c[2], ray_direction[2];
-  b_ << a_minus_e[0], a_minus_e[1], a_minus_e[2];
-
-  // cout << "Here is the matrix A:\n" << A_ << endl;
-  // cout << "Here is the vector b:\n" << b_ << endl;
-
-  Vector3f sol = A_.colPivHouseholderQr().solve(b_);
-  if(!(A_*sol).isApprox(b_, 0.003)){
-    sol[0] = -1;
-    sol[1] = -1;
-    sol[2] = -1;
-  }
-  vector<float> solutions;
-
-  // cout << "Here is the solution: " << sol << endl;
-  solutions.push_back(sol[0]);
-  solutions.push_back(sol[1]);
-  solutions.push_back(sol[2]);
-  return solutions;
-}
-// Translates indices from F matrix into 3D coordinates from V
-vector<Vector3d> get_triangle_coordinates(MatrixXd &V, MatrixXd &F, unsigned row)
-{
-  Vector3f coordinates;
-  for(unsigned y=0; y< F.cols();y++)
-  {
-    // Get F indices from row
-    coordinates[y] = F(row,y);
-  }
-  // Now have indices to index into V with
-  float a_component = coordinates[0];
-  float b_component = coordinates[1];
-  float c_component = coordinates[2];
-
-  // cout << a_component << endl;
-  // cout << b_component << endl;
-  // cout <<"C index:" << c_component << endl;
-
-  // Get triangle coordinates
-  Vector3d a_coord = RowVector3d(V(a_component,0),V(a_component, 1),V(a_component, 2));
-  Vector3d b_coord = RowVector3d(V(b_component,0),V(b_component, 1),V(b_component, 2));
-  Vector3d c_coord = RowVector3d(V(c_component,0),V(c_component, 1),V(c_component, 2));
-
-  // cout << "a_coord: " <<  a_coord << endl;
-  // cout << "b_coord: " << b_coord << endl;
-  // cout << "c_coord: " << c_coord << endl;
-
-  vector<Vector3d> ret;
-  ret.push_back(a_coord);
-  ret.push_back(b_coord);
-  ret.push_back(c_coord);
-  return ret;
-}
-
-bool does_intersect(float t, float u, float v)
-{
-  if(t > 0 && u >= 0 && v >=0 && (u+v) <= 1){ return true; }
-  return false;
-}
 
 pair<int, int> wasSelected(double xworld, double yworld)
 {
@@ -1668,7 +1593,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
       selected_vertex_index = result.first;
       selected_index = result.second;
-
+      cout << "Selected vertex is now: \n" << selected_vertex_index << endl;
       // CHANGE SELECTED OBJECT'S COLOR
       if(selected_vertex_index > -1){
         // change the color and update
