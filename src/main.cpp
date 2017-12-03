@@ -56,7 +56,7 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = false;
+bool ortho = true;
 
 // Number of objects existing in the scene
 int numObjects = 0;
@@ -848,8 +848,8 @@ void addBunny()
   initBunnyPer <<  0.109091,-0.717025,0.0119573,1.;
   if(ortho){
     model.block(0, 4*(numObjects-1), 4, 4)<<
-        1.,    0.,            0.,                0.0033,
-        0.,          1.0,     0.,                -0.0,
+        1.,    0.,            0.,                0.0015,
+        0.,          1.0,     0.,                -0.009,
         0.,           0.,            1.,          0.00017,
         0.,           0.,            0.,                1.;
 
