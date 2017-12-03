@@ -56,22 +56,18 @@ enum RenderType { Fill, Wireframe, Flat, Phong };
 vector<RenderType> renders;
 
 // Orthographic or perspective projection?
-bool ortho = true;
+bool ortho = false;
 
 // Number of objects existing in the scene
 int numObjects = 0;
 
-// Keeping track of mouse position
-double currentX, currentY, previousX, previousY;
 
 // Is an object selected?
-bool selected = false;
 int selected_index = -1;
 int selected_vertex_index = -1;
 int previousIdx = -1;
 ObjectType select_type;
 ObjectType previousType;
-bool selectedPress = false;
 
 // Amount to divide/multiply vertices by in orthographic projection
 int ORTHO_FACTOR = 70;
@@ -658,20 +654,18 @@ void initialize(GLFWwindow* window)
     }
   }
 
-  cout << "Adding normals" << endl;
   ObjectType t = Unit;
   addNormals(t);
   t = Bunny;
   addNormals(t);
   t = Bumpy;
   addNormals(t);
-  cout << "Done adding normals" << endl;
 
   N_vertices = unit_vertices;
   N_faces = unit_faces;
   VBO_N_F.update(N_faces);
   VBO_N_V.update(N_vertices);
-  cout << "Done init" << endl;
+  cout << "Finished initialization" << endl;
 
 }
 
@@ -1072,34 +1066,6 @@ void translateTriangle(int direction)
     }
   }
 }
-void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
-{
-  // Get the size of the window
-  int width, height;
-  glfwGetWindowSize(window, &width, &height);
-
-  // Convert screen position to world coordinates
-  Eigen::Vector4f p_screen(xpos,height-1-ypos,0,1);
-  Eigen::Vector4f p_canonical((p_screen[0]/width)*2-1,(p_screen[1]/height)*2-1,0,1);
-  Eigen::Vector4f p_world = view.inverse() * projection.inverse() * p_canonical;
-
-  double xworld = p_world[0];
-  double yworld = p_world[1];
-
-  // Keep track of mouse positions
-  if(!previousX && !previousY)
-  {
-    previousX = xworld;
-    previousY = yworld;
-  }else{
-    previousX = currentX;
-    previousY = currentY;
-
-    currentX = xworld;
-    currentY = yworld;
-  }
-
-}
 
 void changeView(int direction)
 {
@@ -1210,6 +1176,7 @@ void deleteObject()
         MatrixXf C_holder(3, (C.cols()-3000));
         MatrixXf model_holder(4, (model.cols()-4));
         vector<ObjectType> types_holder;
+        vector<RenderType> renders_holder;
         int start = selected_vertex_index;
         int end = start + 3000;
         int holder_idx = 0;
@@ -1233,10 +1200,13 @@ void deleteObject()
         for(int i = 0; i < types.size(); i++){
           if(i == start) continue;
           types_holder.push_back(types[i]);
+          renders_holder.push_back(renders[i]);
         }
         types.clear();
+        renders.clear();
         for(int i = 0; i < types_holder.size(); i++){
           types.push_back(types_holder[i]);
+          renders.push_back(renders_holder[i]);
         }
         V = V_holder;
         N_faces = N_faces_holder;
@@ -1258,30 +1228,37 @@ void deleteObject()
         MatrixXf C_holder(3, (C.cols()-3000));
         MatrixXf model_holder(4, (model.cols()-4));
         vector<ObjectType> types_holder;
+        vector<RenderType> renders_holder;
         int start = selected_vertex_index;
         int end = start + 3000;
-
+        int holder_idx = 0;
         for(int i = 0; i < V.cols(); i++){
           if(i >= start && i < end) continue;
-          V_holder.col(i) << V.col(i);
-          N_faces_holder.col(i) << N_faces.col(i);
-          N_vertices_holder.col(i) << N_vertices.col(i);
-          C_holder.col(i) << C.col(i);
+          V_holder.col(holder_idx) << V.col(i);
+          N_faces_holder.col(holder_idx) << N_faces.col(i);
+          N_vertices_holder.col(holder_idx) << N_vertices.col(i);
+          C_holder.col(holder_idx) << C.col(i);
+          holder_idx++;
         }
         start = selected_index;
         end = selected_index + 4;
+        holder_idx = 0;
         for(int i = 0; i < model.cols(); i++){
           if(i >= start && i < end) continue;
-          model_holder.col(i) << model.col(i);
+          model_holder.col(holder_idx) << model.col(i);
+          holder_idx++;
         }
         start = selected_index/4;
         for(int i = 0; i < types.size(); i++){
           if(i == start) continue;
           types_holder.push_back(types[i]);
+          renders_holder.push_back(renders[i]);
         }
         types.clear();
+        renders.clear();
         for(int i = 0; i < types_holder.size(); i++){
           types.push_back(types_holder[i]);
+          renders.push_back(renders_holder[i]);
         }
         V = V_holder;
         N_faces = N_faces_holder;
@@ -1298,6 +1275,7 @@ void deleteObject()
     }
     selected_index = -1;
     selected_vertex_index = -1;
+    previousIdx = -1;
     if(numObjects == 0){
       //------------------------------------------
       // VERTEX DATA
@@ -1796,9 +1774,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         }
       }
 
-    }else if(action == GLFW_RELEASE && selectedPress){
-      selected = true;
-      selectedPress = false;
     }
 }
 
@@ -2129,9 +2104,6 @@ int main(void)
 
     // Register the mouse click callback
     glfwSetMouseButtonCallback(window, mouse_button_callback);
-
-    // Register the mouse movement callback
-    glfwSetCursorPosCallback(window, cursor_pos_callback);
 
     // Register the window resize callback
     glfwSetWindowSizeCallback(window, window_size_callback);
