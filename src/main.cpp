@@ -371,11 +371,8 @@ void initialize(GLFWwindow* window)
   VBO_C.init();
   VBO_N_V.init();
   VBO_N_F.init();
-  if(ortho){
-     lightPos << 1.0, 0.0, -1.0;
-  }else{
-    lightPos << 1.0, 0.0, 1.0;
-  }
+
+  lightPos << 1.0, 0.0, 1.0;
 
   //------------------------------------------
   // VERTEX DATA
@@ -482,18 +479,11 @@ void initialize(GLFWwindow* window)
   l = -r;
 
   // Apply projection matrix to corner points
-  // orthographic <<
-  // 2/(r - l), 0., 0., -((r+l)/(r-l)),
-  // 0., 2/(t - b), 0., -((t+b)/(t-b)),
-  // 0., 0., 2/(abs(f)-abs(n)), -((abs(n)+abs(f))/(abs(f)-abs(n))),
-  // 0., 0., 0.,   1.;
-
   orthographic <<
-  2/(r - l), 0., 0., -((r+l)/(r-l)),
-  0., 2/(t - b), 0., -((t+b)/(t-b)),
-  0., 0., 2/(n-f), -((n+f)/(n-f)),
+  2/(r - l), 0., 0., -(r+l)/(r-l),
+  0., 2/(t - b), 0., -(t+b)/(t-b),
+  0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
   0., 0., 0.,   1.;
-
 
   // perspective maps a frustrum to a unit cube
   // take  vertex from each end of the frustrum and map them to the unit cube
@@ -1047,7 +1037,6 @@ void scaleTriangle(bool up){
 
 }
 
-// Translates triangle based on mouse movement
 void translateTriangle(int direction)
 {
   if(selected_vertex_index > -1){
@@ -1109,6 +1098,7 @@ void changeView(int direction)
   view = look * at;
 
 }
+
 void deleteObject()
 {
 
@@ -1384,11 +1374,13 @@ void deleteObject()
   }
 
 }
+
 bool wasSelected(double alpha, double beta, double gamma)
 {
     return abs(alpha + beta + gamma - 1) < 0.003 && alpha >= 0 && beta >= 0 && gamma >= 0;
 }
-pair<int, int> checkForSelection(double xworld, double yworld)
+
+void checkForSelection(double xworld, double yworld)
 {
   selected_index = -1;
   selected_vertex_index = -1;
@@ -1504,7 +1496,6 @@ pair<int, int> checkForSelection(double xworld, double yworld)
       }
     }// end switch case
   } //end of for loop
-  return pair<int,int>(selected_vertex_index, selected_index);
 
 }
 
@@ -1521,9 +1512,9 @@ void window_size_callback(GLFWwindow* window, int width, int height)
 
   // Apply projection matrix to corner points
   orthographic <<
-  2/(r - l), 0., 0., -((r+l)/(r-l)),
-  0., 2/(t - b), 0., -((t+b)/(t-b)),
-  0., 0., 2/(abs(f)-abs(n)), -(n+f)/(abs(f)-abs(n)),
+  2/(r - l), 0., 0., -(r+l)/(r-l),
+  0., 2/(t - b), 0., -(t+b)/(t-b),
+  0., 0., 2/(abs(n)-abs(f)), -(n+f)/(abs(n)-abs(f)),
   0., 0., 0.,   1.;
 
   perspective <<
@@ -1565,14 +1556,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         x_world = p_world[0] * 0.5 * 1.91632;
         y_world = p_world[1] * 0.5 * 1.91632;
       }
+      // See if anything was selected
+      checkForSelection(x_world, y_world);
 
-      // cout << "Previous selected idx: " << selected_vertex_index << endl;
-      pair<int, int> result = checkForSelection(x_world, y_world);
-
-      selected_vertex_index = result.first;
-      selected_index = result.second;
       cout << "Selected vertex is now: \n" << selected_vertex_index << endl;
-      // CHANGE SELECTED OBJECT'S COLOR
+      // Change color based on selection
       if(selected_vertex_index > -1){
         // change the color and update
         cout << "Changing selected object's color" << endl;
