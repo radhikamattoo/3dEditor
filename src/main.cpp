@@ -1751,32 +1751,32 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         }
         // OBJECT ROTATION
         case  GLFW_KEY_F:{
-            cout << "Rotating 10 degrees along Z-axis " << endl;
+            cout << "Rotating 10 degrees" << endl;
             rotateTriangle(0, 10.);
             break;
           }
         case  GLFW_KEY_G:{
-            cout << "Rotating -10 degrees along Z-axis" << endl;
+            cout << "Rotating -10 degrees" << endl;
             rotateTriangle(0, -10.);
             break;
           }
         case  GLFW_KEY_H:{
-            cout << "Rotating 10 degrees along X-axis" << endl;
+            cout << "Rotating 10 degrees" << endl;
             rotateTriangle(1, 10.);
             break;
           }
         case  GLFW_KEY_J:{
-            cout << "Rotating -10 degrees along X-axis" << endl;
+            cout << "Rotating -10 degrees" << endl;
             rotateTriangle(1, -10.);
             break;
           }
         case  GLFW_KEY_K:{
-            cout << "Rotating 10 degrees along Y-axis" << endl;
+            cout << "Rotating 10 degreess" << endl;
             rotateTriangle(2, 10.);
             break;
           }
         case  GLFW_KEY_L:{
-            cout << "Rotating -10 degrees along Y-axis" << endl;
+            cout << "Rotating -10 degrees" << endl;
             rotateTriangle(2, -10.);
             break;
           }
